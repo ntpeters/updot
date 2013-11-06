@@ -4,7 +4,7 @@
 #
 # A script I made to automatically grab all of the dotfiles I want to keep
 # track of, and push them upto my github repository. Files to be updated
-# should be included in a 'dotfiles.manifest' file, in the same directory
+# should be included in a 'dotfiles.manifest' file in the same directory
 # as this script.
 
 # open manifest file
@@ -41,7 +41,6 @@ for path in manifest:
         # file is already in directory, but before we update it
         # we first check if there are any changes to the file
             if not filecmp.cmp(fullpath, filename):
-                # print "COPY %s" % os.path.basename(filename)
                 # files are different, update
                 call(["cp", "-v", fullpath, filename])
 		call(["git", "add", filename])
@@ -57,6 +56,3 @@ for path in manifest:
 
 call(["git", "commit", "-m", "updot.py update"])
 call(["git", "push"])
-
-# print "Files updated: %d / %d (%d invalid)" % (updated_files, total_files, \
-#                invalid_files)
