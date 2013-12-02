@@ -1,6 +1,7 @@
 #!/usr/local/bin/python
 
-# Author: Mike Grimes <magrimes@mtu.edu> 5-23-2013
+# Author: Mike Grimes   <magrimes@mtu.edu>  5-23-2013
+#         Nate Peterson <ntpeters@mtu.edu>  12-1-2013
 #
 # A script I made to automatically grab all of the dotfiles I want to keep
 # track of, and push them upto my github repository. Files to be updated
@@ -12,6 +13,10 @@ import os
 import string
 import filecmp
 import sys
+
+# Script version
+updot_version = "1.1"
+print "updot v1.1 - Dotfile update script\n"
 
 # Set GitHub username
 github_username = ""
