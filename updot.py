@@ -7,20 +7,29 @@
 # should be included in a 'dotfiles.manifest' file in the same directory
 # as this script.
 
-# open manifest file
-
 from subprocess import call, check_output, check_call, CalledProcessError
 import os
 import string
 import filecmp
 import sys
 
-github_username = "ntpeters"
+# Set GitHub username
+github_username = check_output( ["git", "config", "github.user"] )[:-1]
+if len( github_username ) == 0:
+    print "\nNo GitHub username found. Please provide one now."
+    github_username = raw_input( 'Enter GitHub username: ' )
+    print "Storing username in git config.\n"
+    call( ["git", "config", "--global", "github.user", github_username] )
 
+
+# Setup directory variables
 updot_dir = os.path.dirname( os.path.abspath( __file__ ) ) 
 user_home_dir = os.path.expanduser( "~" )
-manifest = open(updot_dir + "/dotfiles.manifest", "r")
 dotfiles_dir = user_home_dir + "/dotfiles"
+
+# Open manifest file
+manifest = open(updot_dir + "/dotfiles.manifest", "r")
+
 # Check if dotfile directory exists, and create it if it doesn't
 if not os.path.exists( dotfiles_dir ):
     print "\nCreating dotfiles directory...\n"

@@ -1,0 +1,8 @@
+# Ignore vim undo files
+*.un~
+
+# Ignore vim swap files
+*.swp
+
+# Ignore vim backup files
+*~
