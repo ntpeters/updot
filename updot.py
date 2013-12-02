@@ -19,7 +19,7 @@ updot_version = "1.1"
 print "updot v" + updot_version + " - Dotfile update script"
 
 # When false, unnecessary output is suppressed
-debug = False 
+debug = False
 
 # Open output streams
 devnull = open( os.devnull, "w" )
@@ -66,16 +66,28 @@ if not os.path.exists( dotfiles_dir ):
     print "\nDotfiles directory does not exist."
     print "Creating dotfiles directory..."
     os.makedirs( dotfiles_dir )
-
+    
 # Change to dotfiles repo directory
 os.chdir(dotfiles_dir)
+
+if not os.path.isfile( "README.md" ):
+    #Create Readme file
+    print "\nReadme not found."
+    print "Creating readme file..."
+    readme = open( "README.md", "w+" )
+    readme.write( "dotfiles\n" )
+    readme.write( "========\n" )
+    readme.write( "My dotfiles repository.\n\n" )
+    readme.write( "Created by the awesome 'updot.py' script!\n\n" )
+    readme.write( "Get the script for yourself here: https://github.com/magrimes/updot\n" )
+    readme.close()
 
 # Check if dotfiles directory is a git repo
 try:
     check_call( ["git", "status"], stdout = outstream, stderr = errstream )
 except CalledProcessError:
     # Init as a local git repo
-    print "\nDotiles directory does not contain a git repository."
+    print "\nDotfiles directory does not contain a git repository."
     print "Initializing local repository..."
     call( ["git", "init"], stdout = outstream, stderr = errstream )
 
@@ -100,8 +112,8 @@ except CalledProcessError:
 
         # Create repo on GitHub
         print "GitHub password required."
-        call( ["curl", silentflag, "-u", github_username, "https://api.github.com/user/repos", "-d", "{\"name\":\"dotfiles\"}"], stdout = outstream )
-        print "\nAdding dotiles remote..."
+        call( ["curl", silentflag, "-u", github_username, "https://api.github.com/user/repos", "-d", "{\"name\":\"dotfiles\", \"description\":\"My dotfiles repository\"}"], stdout = outstream )
+        print "\nAdding dotfiles remote..."
         call( ["git", "remote", "add", "origin", "git@github.com:" + github_username + "/dotfiles.git"], stdout = outstream, stderr = errstream )
 
         print "\nCreating initial commit..."
