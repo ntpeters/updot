@@ -149,7 +149,7 @@ for path in manifest:
                 # files are different, update
                 call(["cp", "-v", fullpath, filename], stdout = outstream, stderr = errstream )
                 call(["git", "add", filename] )
-                print "Adding " + filename_str + "..."
+                print "Updating " + filename_str + "..."
                 updated_files += 1
         else:
             # file is not in directory, we'll copy it and commit it
