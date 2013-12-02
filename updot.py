@@ -14,13 +14,21 @@ import filecmp
 import sys
 
 # Set GitHub username
-github_username = check_output( ["git", "config", "github.user"] )[:-1]
+github_username = ""
+
+# Try to get GitHub username from git config
+try:
+    github_username = check_output( ["git", "config", "github.user"] )[:-1]
+except CalledProcessError:
+   print "GitHub user entry does not exist in git config, creating now..."
+   call( ["git", "config", "--global", "github.user", ""] )
+
+# Check if GitHub username has been set
 if len( github_username ) == 0:
     print "\nNo GitHub username found. Please provide one now."
     github_username = raw_input( 'Enter GitHub username: ' )
     print "Storing username in git config.\n"
     call( ["git", "config", "--global", "github.user", github_username] )
-
 
 # Setup directory variables
 updot_dir = os.path.dirname( os.path.abspath( __file__ ) ) 
