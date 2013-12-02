@@ -109,6 +109,10 @@ except CalledProcessError:
         call( ["git", "commit", "-m", "\"Initial commit.\""], stdout = outstream, stderr = errstream)
         call( ["git", "push", "origin", "master"], stdout = outstream, stderr = errstream )
 
+# Pull most recent files from remote repository for comparison
+print "\nPulling most recent revisions from remote repository..."
+call( ["git", "pull", "origin", "master"], stdout = outstream, stderr = errstream )
+
 print "\nProcessing dotfiles...\n"
 
 # copy each file to dotfiles
