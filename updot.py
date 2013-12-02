@@ -9,18 +9,28 @@
 
 # open manifest file
 
-from subprocess import call, check_output
+from subprocess import call, check_output, check_call
 import os
 import string
 import filecmp
 import sys
 
-updot_dir = "/Users/mgrimes/code/python/updot"
+updot_dir = os.path.dirname( os.path.abspath( __file__ ) ) 
+user_home_dir = os.path.expanduser( "~" )
+manifest = open(updot_dir + "/dotfiles.manifest", "r")
+dotfiles_dir = user_home_dir + "/dotfiles"
+# Check if dotfile directory exists, and create it if it doesn't
+if not os.path.exists( dotfiles_dir ):
+    os.makedirs( dotfiles_dir )
 
-manifest = open(updot_dir + "/dotfiles.manifest", "r");
-dotfiles_dir = "/Users/mgrimes/dotfiles"
-
+# Change to dotfiles repo directory
 os.chdir(dotfiles_dir)
+
+# Check if dotfiles directory is a git repo
+try:
+    check_call( ["git", "status"] )
+except CalledProcessError:
+    call( ["git", "init"] )
 
 # copy each file to dotfiles
 total_files = 0;
