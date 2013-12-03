@@ -13,6 +13,7 @@ import os
 import string
 import filecmp
 import sys
+import time
 
 # Script version
 updot_version = "1.1"
@@ -58,9 +59,31 @@ updot_dir = os.path.dirname( os.path.abspath( __file__ ) )
 user_home_dir = os.path.expanduser( "~" )
 dotfiles_dir = user_home_dir + "/dotfiles"
 
-# Open manifest file
-manifest = open(updot_dir + "/dotfiles.manifest", "r")
-
+# Open manifest file, or create it if it doesn't exist
+manifest = None
+try:
+    manifest = open(updot_dir + "/dotfiles.manifest", "r")
+except IOError:
+    print "\nManifest file not found!"
+    print "Creating empty 'dotfiles.manifest'..."
+    manifest = open( updot_dir + "/dotfiles.manifest", "w+" )
+    manifest.write( "# updot.py Dotfile Manifest\n" )
+    manifest.write( "# This file is used to define which dotfiles you want tracked with updot.py\n" )
+    manifest.write( "# Add the path to each dotfile you wish to track below this line\n" )
+    manifest.close();
+    try:
+        print "Opening in vim for user to edit..."
+        time.sleep(1)
+        check_call( ["notvim", "dotfiles.manifest"] )
+        print "File contents updated by user.  Attempting to continue..."
+        manifest = open( updot_dir + "/dotfiles.manifest", "r" )
+    except OSError:
+        print "\nVim not found. Unable to open manifest for user editing."
+        print "Add to the manifest file the path of each dotfile you wish to track."
+        print "Then run this script again."
+        print "Exiting..."
+        sys.exit();
+    
 # Check if dotfile directory exists, and create it if it doesn't
 if not os.path.exists( dotfiles_dir ):
     print "\nDotfiles directory does not exist."
@@ -70,6 +93,7 @@ if not os.path.exists( dotfiles_dir ):
 # Change to dotfiles repo directory
 os.chdir(dotfiles_dir)
 
+# Check for a readme, and create one if one doesn't exist
 if not os.path.isfile( "README.md" ):
     #Create Readme file
     print "\nReadme not found."
@@ -78,7 +102,7 @@ if not os.path.isfile( "README.md" ):
     readme.write( "dotfiles\n" )
     readme.write( "========\n" )
     readme.write( "My dotfiles repository.\n\n" )
-    readme.write( "Created by the awesome 'updot.py' script!\n\n" )
+    readme.write( "Created and maintained by the awesome 'updot.py' script!\n\n" )
     readme.write( "Get the script for yourself here: https://github.com/magrimes/updot\n" )
     readme.close()
 
@@ -125,6 +149,37 @@ except CalledProcessError:
 print "\nPulling most recent revisions from remote repository..."
 call( ["git", "pull", "origin", "master"], stdout = outstream, stderr = errstream )
 
+# Open timestamp file, or create it if it doesn't exist
+timestamps = None
+try:
+    timestamps = open( dotfiles_dir + "/.timestamps", "r" )
+except IOError:
+    print "\nTimestamps file not found."
+    print "Creating timestamps file..."
+    timestamps = open( dotfiles_dir + "/.timestamps", "w+" )
+    timestamps.close()
+    call( ["git", "add", "/.timestamps"], stdout = outstream, stderr = errstream )
+    timestamps = open( dotfiles_dir + "/.timestamps", "r" )
+
+# Process timestamps files, and update file modified times
+print "\nRestoring file timestamps..."
+file_timestamps = {}
+for file_time in timestamps:
+    split_str = file_time.split( "\t" )
+    time = split_str[0]
+    name = split_str[1]
+    file_timestamps[ name ] = time
+    os.utime( name, time )
+
+# Read manifest file
+print "\nReading manifest file..."
+files = {}
+for path in manifest:
+    # Don't process line if it is commented out
+    if path[0] != "#":
+        filename = path.split( "/" )[-1][:-1]
+        files[ str(filename) ] = path
+
 print "\nProcessing dotfiles...\n"
 
 # copy each file to dotfiles
@@ -132,34 +187,80 @@ total_files = 0;
 updated_files = 0;
 invalid_files = 0;
 new_files = 0;
-# print "Copying files:"
-for path in manifest:
+
+no_update_files = 0;
+non_existant_files = 0;
+
+# Hold the file paths that need to be copied
+# Key: src, Val: dest
+update_remote = {}
+update_local = {}
+new_remote = {}
+new_local = {}
+
+for name, path in files.iteritems():
     path = string.rstrip(path, "\n")
     total_files += 1
     fullpath = os.path.expanduser(path)
-    # print fullpath
+
+    # Get local/remote times for comparison
+    local_time = None
+    remote_time = None
+    try:
+        local_time = os.path.getmtime( fullpath )
+        remote_time = file_timestamps[ filename ]
+    except KeyError:
+        # No timestamps for this file exists
+        remote_time = ""
+    except OSError:
+        # File does exist locally
+        local_time = ""
 
     if os.path.isfile(fullpath) or os.path.isdir(fullpath):
-        filename_str = string.lstrip(os.path.basename(fullpath), ".")
+        filename_str = os.path.basename(fullpath)
         filename = dotfiles_dir + "/" + filename_str
-        if os.path.isfile(filename):
-            # file is already in directory, but before we update it
-            # we first check if there are any changes to the file
-            if not filecmp.cmp(fullpath, filename):
-                # files are different, update
-                call(["cp", "-v", fullpath, filename], stdout = outstream, stderr = errstream )
-                call(["git", "add", filename] )
-                print "Updating " + filename_str + "..."
+        if os.path.isfile(filename) and os.path.isfile( fullpath ):
+            # File is already in directory, and exists locally
+            # Check if local is newer
+            if local_time > remote_time:
+                # Local is newer, mark for update
+                update_remote[ fullpath ] = filename
                 updated_files += 1
-        else:
-            # file is not in directory, we'll copy it and commit it
+                file_timestamps[ filename ] = local_time
+            elif remote_time > local_time:
+                # Remote file is newer than local, update local file
+                update_local[ filename ] = fullpath
+            else:
+                # File times are the same, do nothing
+                no_update_files += 1
+        elif os.path.isfile( fullpath ):
+            # File is not in directory, but does exist locally
+            new_remote[ fullpath ] = filename
             new_files += 1
-            call(["cp", "-v", fullpath, filename], stdout = outstream, stderr = errstream )
-            call(["git", "add", filename])
-            print "Adding " + filename_str + "..."
+            file_timestamps[ filename ] = local_time
+        elif os.path.isfile( filename ):
+            # File is in directory, but does not exist locally
+            new_local[ filename ] = fullpath
+        else:
+            # The file does not exist locally or remotely, do nothing
+            non_existant_files += 1
     else:
         total_files -= 1
         invalid_files += 1
+
+# Update all changed remote files
+for src, dest in update_remote.iteritems():
+    filename_str = os.path.basename(src)
+    call(["cp", "-v", src, dest], stdout = outstream, stderr = errstream )
+    call(["git", "add", dest] )
+    print "Updating " + filename_str + "..."
+
+# Add all new remote files
+for src, dest in new_remote.iteritems():
+    filename_str = os.path.basename(src)
+    call(["cp", "-v", src, dest], stdout = outstream, stderr = errstream )
+    call(["git", "add", dest])
+    print "Adding " + filename_str + "..."
 
 push_files = updated_files + new_files
 
