@@ -17,7 +17,7 @@ import time
 import math
 
 # Script version
-updot_version = "1.1"
+updot_version = "1.2"
 print "updot v" + updot_version + " - Dotfile update script"
 
 # When false, unnecessary output is suppressed
