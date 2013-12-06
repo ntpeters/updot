@@ -222,6 +222,12 @@ for name, path in files.iteritems():
         # No timestamp exists for this file
         remote_time = 0
 
+    check_path = fullpath[1:].split( "/" )
+    print check_path[0]
+    print os.path.expanduser( "~" )
+    if check_path[0] == os.path.expanduser( "~" ):
+        print "EET WERKZ!"
+
     if os.path.isfile(fullpath) or os.path.isdir(fullpath):
         filename_str = os.path.basename(fullpath)
         filename = dotfiles_dir + "/" + filename_str
@@ -230,22 +236,31 @@ for name, path in files.iteritems():
             # Check if local is newer
             if local_time > remote_time:
                 # Local is newer, mark for update
-                update_remote[ fullpath ] = filename
+                print "Update remote - src: " + fullpath + " dest: " + filename
+                update_remote[ fullpath ] = string.lstrip( filename, "." )
                 updated_files += 1
                 file_timestamps[ name ] = local_time
             elif remote_time > local_time:
                 # Remote file is newer than local, update local file
+                print "Update local - src: " + fullpath + " dest: " + filename
+                check_path = fullpath[1:].split( "/" )
+                print check_path[0]
+                print os.path.expanduser( "~" )
+                if check_path[0] == os.path.expanduser( "~" ):
+                    print "EET WERKZ!"
                 update_local[ filename ] = fullpath
             else:
                 # File times are the same, do nothing
                 no_update_files += 1
         elif os.path.isfile( fullpath ):
             # File is not in directory, but does exist locally
-            new_remote[ fullpath ] = filename
+            print "New remote - src: " + fullpath + " dest: " + filename
+            new_remote[ fullpath ] = string.lstrip( filename, "." )
             new_files += 1
             file_timestamps[ name ] = local_time
         elif os.path.isfile( filename ):
             # File is in directory, but does not exist locally
+            print "New local - src: " + fullpath + " dest: " + filename
             new_local[ filename ] = fullpath
         else:
             # The file does not exist locally or remotely, do nothing
@@ -258,53 +273,61 @@ for name, path in files.iteritems():
 timestamps.close()
 timestamps = open( dotfiles_dir + "/.timestamps", "w" )
 for path, time in file_timestamps.iteritems():
-    timestamps.write( str(path) + "\t" + str(time) + "\n" )
+    timestamps.write( str(path) + "\t" + str( time ) + "\n" )
 timestamps.close()
 call( ["git", "add", dotfiles_dir + "/.timestamps"], stdout = outstream, stderr = errstream )
 
 remote_file_count = len( update_remote ) + len( new_remote )
 if remote_file_count > 0:
     print "Remote files marked for update:"
-# Update all changed remote files
-for src, dest in update_remote.iteritems():
-    filename_str = os.path.basename(src)
-    call(["cp", "-v", src, dest], stdout = outstream, stderr = errstream )
-    call(["git", "add", dest] )
-    print "Updating " + filename_str + "..."
+    # Update all changed remote files
+    for src, dest in update_remote.iteritems():
+        filename_str = os.path.basename(src)
+        call(["cp", "-v", src, dest], stdout = outstream, stderr = errstream )
+        call(["git", "add", dest] )
+        print "Updating " + filename_str + "..."
 
-# Add all new remote files
-for src, dest in new_remote.iteritems():
-    filename_str = os.path.basename(src)
-    call(["cp", "-v", src, dest], stdout = outstream, stderr = errstream )
-    call(["git", "add", dest])
-    print "Adding " + filename_str + "..."
+    # Add all new remote files
+    for src, dest in new_remote.iteritems():
+        filename_str = os.path.basename(src)
+        call(["cp", "-v", src, dest], stdout = outstream, stderr = errstream )
+        call(["git", "add", dest])
+        print "Adding " + filename_str + "..."
 
-local_file_count = len( update_local ) + len( new_local )
-if local_file_count > 0:
-    print "\nLocal files marked for update:"
-
-for src, dest in update_local.iteritems():
-    filename_str = os.path.basename(src)
-    call(["cp", "-v", src, dest], stdout = outstream, stderr = errstream )
-    print "Updating " + filename_str + "..."
-
-for src, dest in new_local.iteritems():
-    filename_str = os.path.basename(src)
-    call(["cp", "-v", src, dest], stdout = outstream, stderr = errstream )
-    print "Copying " + filename_str + "..."
-
-push_files = updated_files + new_files
-
-if push_files > 0:
+    # Commit and push changes if remote files need updating
     print "\nPushing changes...\n"
     try:
         check_call(["git", "commit", "-m", "updot.py update"], stdout = outstream, stderr = errstream )
         check_call(["git", "push", "origin", "master"], stdout = outstream, stderr = errstream )
         print "Push successful!"
-        print "Updated " + str( push_files ) + " files successfully!"
+        print "Updated " + str( remote_file_count ) + " remote files successfully!"
         print "All remote files up to date!"
     except CalledProcessError:
         print "Error pushing changes!"
 else:
     print "Nothing to push."
-    print "Everything up to date!"
+    print "Remote files up to date!"
+
+
+local_file_count = len( update_local ) + len( new_local )
+if local_file_count > 0:
+    print "\nLocal files marked for update:"
+    
+    # Update all changed local files
+    for src, dest in update_local.iteritems():
+        filename_str = os.path.basename(src)
+        call(["cp", "-v", src, dest], stdout = outstream, stderr = errstream )
+        print "Updating " + filename_str + "..."
+
+    # Add all new local files
+    for src, dest in new_local.iteritems():
+        filename_str = os.path.basename(src)
+        call(["cp", "-v", src, dest], stdout = outstream, stderr = errstream )
+        print "Copying " + filename_str + "..."
+
+    print "\nFile copy successful!"
+    print "Updated " + str( local_file_count ) + " local files successfully!"
+    print "All local files up to date!"
+else:
+    print "\nNothing to copy."
+    print "Local files up to date!"
