@@ -1,12 +1,12 @@
 #!/usr/local/bin/python
 
-# Author: Mike Grimes   <magrimes@mtu.edu>  5-23-2013
-#         Nate Peterson <ntpeters@mtu.edu>  12-1-2013
+# Authors:  Mike Grimes   <magrimes@mtu.edu>
+#           Nate Peterson <ntpeters@mtu.edu>
 #
-# A script I made to automatically grab all of the dotfiles I want to keep
-# track of, and push them upto my github repository. Files to be updated
-# should be included in a 'dotfiles.manifest' file in the same directory
-# as this script.
+# A script made to automatically grab all of the dotfiles a user desires to
+# keep track of, and keep them synced with their github repository.
+# Files to be updated should be included in a 'dotfiles.manifest' file in the
+# 'dotfiles' directory that this script will create in your home directory.
 
 from subprocess import call, check_output, check_call, CalledProcessError
 import os
@@ -29,14 +29,11 @@ stdout  = sys.stdout
 stderr  = sys.stderr
 
 # Set active output stream
-outstream = None
-errstream = None
+outstream = devnull
+errstream = devnull
 if debug:
     outstream = stdout
     errstream = stderr
-else:
-    outstream = devnull
-    errstream = devnull
 
 # Set GitHub username
 github_username = ""
@@ -56,14 +53,20 @@ if len( github_username ) == 0:
     call( ["git", "config", "--global", "github.user", github_username], stdout = outstream, stderr = errstream )
 
 # Setup directory variables
-updot_dir = os.path.dirname( os.path.abspath( __file__ ) ) 
+updot_dir = os.path.dirname( os.path.abspath( __file__ ) )
 user_home_dir = os.path.expanduser( "~" )
 dotfiles_dir = user_home_dir + "/dotfiles"
+
+# Check if dotfile directory exists, and create it if it doesn't
+if not os.path.exists( dotfiles_dir ):
+    print "\nDotfiles directory does not exist."
+    print "Creating dotfiles directory..."
+    os.makedirs( dotfiles_dir )
 
 # Open manifest file, or create it if it doesn't exist
 manifest = None
 try:
-    manifest = open(updot_dir + "/dotfiles.manifest", "r")
+    manifest = open(dotfiles_dir + "/dotfiles.manifest", "r")
 except IOError:
     print "\nManifest file not found!"
     print "Creating empty 'dotfiles.manifest'..."
@@ -73,27 +76,24 @@ except IOError:
     manifest.write( "# Add the path to each dotfile you wish to track below this line\n" )
     manifest.close();
     try:
-        print "Opening in vim for user to edit..."
+        print "Opening in default editor for user to edit..."
         time.sleep(1)
-        check_call( ["notvim", "dotfiles.manifest"] )
+        editor = os.environ['EDITOR']
+        if editor == None:
+            print "$EDITOR environment variable not set. Defaulting to Vim for editing."
+            editor = "vim"
+        check_call( [editor, "dotfiles.manifest"] )
         print "File contents updated by user.  Attempting to continue..."
         manifest = open( updot_dir + "/dotfiles.manifest", "r" )
     except OSError:
-        print "\nVim not found. Unable to open manifest for user editing."
+        print "\n" + editor + " not found. Unable to open manifest for user editing."
         print "Add to the manifest file the path of each dotfile you wish to track."
         print "Then run this script again."
         print "Exiting..."
         sys.exit();
-    
-# Check if dotfile directory exists, and create it if it doesn't
-if not os.path.exists( dotfiles_dir ):
-    print "\nDotfiles directory does not exist."
-    print "Creating dotfiles directory..."
-    os.makedirs( dotfiles_dir )
-    
+
 # Change to dotfiles repo directory
 os.chdir(dotfiles_dir)
-
 
 # Check if dotfiles directory is a git repo
 try:
@@ -312,7 +312,7 @@ else:
 local_file_count = len( update_local ) + len( new_local )
 if local_file_count > 0:
     print "\nLocal files marked for update:"
-    
+
     # Update all changed local files
     for src, dest in update_local.iteritems():
         filename_str = os.path.basename(src)
