@@ -39,6 +39,7 @@ if debug:
 github_username = ""
 
 # Try to get GitHub username from git config
+print "Attempting to retrieve GitHub username..."
 try:
     github_username = check_output( ["git", "config", "github.user"] )[:-1]
 except CalledProcessError:
@@ -52,18 +53,22 @@ if len( github_username ) == 0:
     print "Storing username in git config."
     call( ["git", "config", "--global", "github.user", github_username], stdout = outstream, stderr = errstream )
 
+print "Using GitHub Username: " + github_username
+
 # Setup directory variables
 updot_dir = os.path.dirname( os.path.abspath( __file__ ) )
 user_home_dir = os.path.expanduser( "~" )
 dotfiles_dir = user_home_dir + "/dotfiles"
 
 # Check if dotfile directory exists, and create it if it doesn't
+print "Checking for '~/dotfiles' directory..."
 if not os.path.exists( dotfiles_dir ):
     print "\nDotfiles directory does not exist."
     print "Creating dotfiles directory..."
     os.makedirs( dotfiles_dir )
 
 # Open manifest file, or create it if it doesn't exist
+print "Checking for 'dotfiles.manifest'..."
 manifest = None
 try:
     manifest = open(dotfiles_dir + "/dotfiles.manifest", "r")
@@ -96,6 +101,7 @@ except IOError:
 os.chdir(dotfiles_dir)
 
 # Check if dotfiles directory is a git repo
+print "Verifying dotfiles directory is a git repository..."
 try:
     check_call( ["git", "status"], stdout = outstream, stderr = errstream )
 except CalledProcessError:
@@ -105,6 +111,7 @@ except CalledProcessError:
     call( ["git", "init"], stdout = outstream, stderr = errstream )
 
 # Check if remote already added
+print "Checking for remote repository..."
 try:
     check_call( ["git", "fetch", "origin", "master"], stdout = outstream, stderr = errstream )
 except CalledProcessError:
