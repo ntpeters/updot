@@ -21,7 +21,7 @@ updot_version = "1.2"
 print "updot v" + updot_version + " - Dotfile update script"
 
 # When false, unnecessary output is suppressed
-debug = False
+debug = True
 
 # Open output streams
 devnull = open( os.devnull, "w" )
@@ -39,21 +39,21 @@ if debug:
 github_username = ""
 
 # Try to get GitHub username from git config
-print "Attempting to retrieve GitHub username..."
+print "\nAttempting to retrieve GitHub username..."
 try:
     github_username = check_output( ["git", "config", "github.user"] )[:-1]
 except CalledProcessError:
-   print "\nGitHub user entry does not exist in git config, creating now..."
+   print "GitHub user entry does not exist in git config, creating now..."
    call( ["git", "config", "--global", "github.user", ""], stdout = outstream, stderr = errstream )
 
 # Check if GitHub username has been set
 if len( github_username ) == 0:
-    print "\nNo GitHub username found. Please provide one now."
+    print "No GitHub username found. Please provide one now."
     github_username = raw_input( 'Enter GitHub username: ' )
     print "Storing username in git config."
     call( ["git", "config", "--global", "github.user", github_username], stdout = outstream, stderr = errstream )
 
-print "Using GitHub Username: " + github_username
+print "GitHub Username: " + github_username
 
 # Setup directory variables
 updot_dir = os.path.dirname( os.path.abspath( __file__ ) )
@@ -61,35 +61,41 @@ user_home_dir = os.path.expanduser( "~" )
 dotfiles_dir = user_home_dir + "/dotfiles"
 
 # Check if dotfile directory exists, and create it if it doesn't
-print "Checking for '~/dotfiles' directory..."
+print "\nChecking for '~/dotfiles' directory..."
 if not os.path.exists( dotfiles_dir ):
-    print "\nDotfiles directory does not exist."
+    print "Dotfiles directory does not exist."
     print "Creating dotfiles directory..."
     os.makedirs( dotfiles_dir )
+else:
+    print "Dotfiles directory exists!"
 
 # Open manifest file, or create it if it doesn't exist
-print "Checking for 'dotfiles.manifest'..."
+print "\nChecking for 'dotfiles.manifest'..."
+manifest_dir = dotfiles_dir + "/dotfiles.manifest"
 manifest = None
 try:
-    manifest = open(dotfiles_dir + "/dotfiles.manifest", "r")
+    manifest = open(manifest_dir, "r")
+    print "Manifest file exists!"
 except IOError:
-    print "\nManifest file not found!"
+    print "Manifest file not found!"
     print "Creating empty 'dotfiles.manifest'..."
-    manifest = open( updot_dir + "/dotfiles.manifest", "w+" )
+    manifest = open( manifest_dir, "w+" )
     manifest.write( "# updot.py Dotfile Manifest\n" )
     manifest.write( "# This file is used to define which dotfiles you want tracked with updot.py\n" )
     manifest.write( "# Add the path to each dotfile you wish to track below this line\n" )
     manifest.close();
     try:
-        print "Opening in default editor for user to edit..."
-        time.sleep(1)
-        editor = os.environ['EDITOR']
+        print "Getting default text editor..."
+        editor = os.environ.get('EDITOR')
         if editor == None:
             print "$EDITOR environment variable not set. Defaulting to Vim for editing."
             editor = "vim"
-        check_call( [editor, "dotfiles.manifest"] )
+        print "Opening manifest file in " + editor + " for editing..."
+        time.sleep(1)
+        check_call( [editor, manifest_dir] )
         print "File contents updated by user.  Attempting to continue..."
-        manifest = open( updot_dir + "/dotfiles.manifest", "r" )
+        time.sleep(1)
+        manifest = open( manifest_dir, "r" )
     except OSError:
         print "\n" + editor + " not found. Unable to open manifest for user editing."
         print "Add to the manifest file the path of each dotfile you wish to track."
@@ -101,28 +107,30 @@ except IOError:
 os.chdir(dotfiles_dir)
 
 # Check if dotfiles directory is a git repo
-print "Verifying dotfiles directory is a git repository..."
+print "\nVerifying dotfiles directory is a git repository..."
 try:
     check_call( ["git", "status"], stdout = outstream, stderr = errstream )
+    print "Dotfiles directory is a git repo!"
 except CalledProcessError:
     # Init as a local git repo
-    print "\nDotfiles directory does not contain a git repository."
+    print "Dotfiles directory does not contain a git repository."
     print "Initializing local repository..."
     call( ["git", "init"], stdout = outstream, stderr = errstream )
 
 # Check if remote already added
-print "Checking for remote repository..."
+print "\nChecking for remote repository..."
 try:
     check_call( ["git", "fetch", "origin", "master"], stdout = outstream, stderr = errstream )
+    print "Remote repository exists!"
 except CalledProcessError:
-    print "\nNo remote repository found."
+    print "No remote repository found."
     print "Adding dotfiles remote..."
     # Check if repo already exists
     try:
         check_call( ["git", "remote", "add", "origin", "git@github.com:" + github_username + "/dotfiles.git"], stdout = outstream, stderr = errstream )
-        check_call( ["git", "fetch", "origin", "master"], stdout = errstream, stderr = outstream )
+        check_call( ["git", "fetch", "origin", "master"], stdout = outstream, stderr = errstream )
     except CalledProcessError:
-        print "\nRemote repository does not exist."
+        print "Remote repository does not exist."
         print "Creating GitHub repository...\n"
 
         # Suppress curl ouput
