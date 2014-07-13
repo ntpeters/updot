@@ -162,7 +162,7 @@ def ssh_setup():
 
     if "Bad credentials" in response:
         add_fail = True
-    
+
     if add_fail:
         print "Failed to add key to GitHub account!"
         print "Please follow the directions on the following page, then rerun this script:"
@@ -218,7 +218,7 @@ def manifest_setup():
             sys.exit()
 
 def update_links():
-    print "Updating symlinks..."
+    print "\nUpdating symlinks...\n"
     for name, path in files.iteritems():
 	if len(name) > 0 and len(path) > 0:
             path = string.rstrip(path, "\n")
@@ -227,8 +227,6 @@ def update_links():
             if name[0] == ".":
                 dst_name = name[1:]
             dst_path = os.path.join(dotfiles_dir, dst_name)
-            print "Src: " + src_path
-            print "Dst: " + dst_path
 
             if not os.path.islink(src_path) and not os.path.isfile(dst_path):
                 print "Moving " + name + " to dotfiles directory..."
@@ -305,7 +303,7 @@ def pull_changes():
         call(["git", "add", dotfiles_dir + "/README.md"], stdout = outstream, stderr = errstream)
 
 def push_changes():
-    print "Pushing updates to remote repository..."
+    print "\nPushing updates to remote repository..."
     call(["git", "add", ".", "-A"], stdout = outstream, stderr = errstream)
     call(["git", "commit", "-m", "\"updot.py update\""], stdout = outstream, stderr = errstream)
     call(["git", "push", "origin", "master"], stdout = outstream, stderr = errstream)
