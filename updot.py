@@ -1,5 +1,5 @@
-#!/usr/local/bin/python
-
+# Updot - Dotfile Updater
+#
 # Authors:  Mike Grimes   <magrimes@mtu.edu>
 #           Nate Peterson <ntpeters@mtu.edu>
 #
@@ -8,7 +8,7 @@
 # Files to be updated should be included in a 'dotfiles.manifest' file in the
 # 'dotfiles' directory that this script will create in your home directory.
 
-from subprocess import call, check_output, check_call, CalledProcessError
+from subprocess import call, check_output, check_call, CalledProcessError, STDOUT
 import os
 import string
 import filecmp
@@ -17,15 +17,17 @@ import time
 import math
 import socket
 import getpass
+import urllib2
+import shutil
 
 # Script version
-updot_version = "1.2"
+updot_version = "2.0"
 
 # When false, unnecessary output is suppressed
-debug = True
+debug = False
 
 # Open output streams
-devnull = open( os.devnull, "w" )
+devnull = open(os.devnull, "w")
 
 # Setup silent flag for curl
 silentflag = "-s"
@@ -45,24 +47,42 @@ github_username = ""
 git_name        = ""
 git_email       = ""
 manifest        = None
+timestamps      = None
+file_timestamps = {}
+files           = {}
 
 # Setup directory variables
-updot_dir     = os.path.dirname( os.path.abspath( __file__ ) )
+updot_dir     = os.path.dirname(os.path.abspath( __file__ ))
 user_home_dir = os.path.expanduser( "~" )
 dotfiles_dir  = user_home_dir + "/dotfiles"
+ssh_key_path  = user_home_dir + "/.ssh/id_rsa.pub"
 manifest_path = dotfiles_dir + "/dotfiles.manifest"
 
-
+def check_internet():
+    # Try connecting to Google to see if there is an active internet connection
+    print "\nChecking internet connection..."
+    try:
+        urllib2.urlopen('http://74.125.225.103/', timeout = 1)
+        print "Internet connection - Okay"
+    except urllib2.URLError:
+        print "No internet connection detected!"
+        print "Check your connection, then rerun this script."
+        print "Exiting..."
+        sys.exit()
 
 def github_setup():
-    # TODO: Check for username/email in config
+    global git_name
+    global git_email
+    global github_username
+
     print "\nInspecting local git configuration..."
 
     # Check for user name
     try:
         git_name = check_output(["git", "config", "user.name"])[:-1]
+        print "gitconfig user.name - Okay"
     except CalledProcessError:
-        print "Name not found in git config."
+        print "\nName not found in git config."
         print "Please provide the name you would like associated with your commits (ie. Mike Grimes)"
         git_name = raw_input('Enter Name: ')
         call(["git", "config", "--global", "user.name", git_name])
@@ -71,8 +91,9 @@ def github_setup():
     # Check for email
     try:
         git_email = check_output(["git", "config", "user.email"])[:-1]
+        print "gitconfig user.email - Okay"
     except CalledProcessError:
-        print "Email not found in git config."
+        print "\nEmail not found in git config."
         print "Please provide the email you would like associated with your commits."
         git_email = raw_input('Enter Email: ')
         call(["git", "config", "--global", "user.email", git_email])
@@ -95,44 +116,61 @@ def github_setup():
 
     print "GitHub Username: " + github_username
 
-    print "\nChecking remote access to GitHub..."
+    print "\nTrying remote access to GitHub..."
     try:
-        check_call(["ssh", "-T", "git@github.com"])
-        print "Connected to GitHub successfully!"
-    except CalledProcessError:
-        print "Public key not setup with GitHub!"
+        check_output(["ssh", "-T", "git@github.com"], stderr = STDOUT)
+    except CalledProcessError as e:
+        print str(e.output)[:-1]
+        if "denied" in str(e.output):
+            print "Public key not setup with GitHub!"
+	    ssh_setup()
+        else:
+            print "Connected to GitHub successfully!"
 
 def ssh_setup():
-    print "Checking for existing local public key..."
+    print "\nChecking for existing local public key..."
     pub_key = None
     try:
-        pub_key = open("~/.ssh/id_rsa.pub", "r")
+        pub_key = open(ssh_key_path, "r")
+        print "Public key found locally."
     except IOError:
-        print "Public key not found locally. Generating..."
-        print "The following prompts will guide you through creating a new public key."
+        print "Public key not found locally. Generating new SSH keys..."
+        print "The following prompts will guide you through creating a new key pair."
+        print "(Please leave directory options set to default values)\n"
         call(["ssh-keygen", "-t", "rsa", "-C", git_email])
 
-        print "Adding to SSH agent..."
-        try:
-            check_call(["eval", "\"$(ssh-agent -s)\""])
-            check_call(["ssh-add", "~/.ssh/id_rsa"])
-        except CalledProcessError:
-            print "Failed to add to agent..."
-
-    pub_key = open("~/.ssh/id_rsa.pub", "r")
-
-    print "Adding key to GitHub..."
-    hostname = socket.gethostname()
-    username = getpass.getuser()
+    print "\nAdding to SSH agent..."
     try:
-        check_call(["curl", silentflag, "-u", github_username, "https://api.github.com/user/repos", "-d", "{\"title\":\"" + username + "@" + hostname + "\", \"key\":\"" + pub_key.read() + "\"}"], stdout = outstream)
-        print "Key added to GitHub successfully!"
+        check_call(["eval", "\"$(ssh-agent -s)\""])
+        check_call(["ssh-add", "~/.ssh/id_rsa"])
+        print "Key added to agent successfully."
+    except (CalledProcessError, OSError):
+        print "Failed to add to agent (probably not an issue)"
+
+    pub_key = open(ssh_key_path, "r")
+
+    print "\nAdding key to GitHub..."
+    hostname = socket.gethostname().split('.')[0]
+    username = getpass.getuser()
+    response = ""
+    add_fail = False
+    try:
+        json = "{\"title\":\"" + username + "@" + hostname + "\", \"key\":\"" + pub_key.read()[:-2] + "\"}"
+        response = check_output(["curl", silentflag, "-u", github_username, "https://api.github.com/user/keys", "-d", json])
     except CalledProcessError:
+        add_fail = True
+
+    if "Bad credentials" in response:
+        add_fail = True
+    
+    if add_fail:
         print "Failed to add key to GitHub account!"
         print "Please follow the directions on the following page, then rerun this script:"
         print "https://help.github.com/articles/generating-ssh-keys"
         print "Exiting..."
-        sys.exit();
+        sys.exit()
+    else:
+        print "Key added to GitHub successfully!"
 
 def directory_setup():
     # Check if dotfile directory exists, and create it if it doesn't
@@ -145,37 +183,66 @@ def directory_setup():
         print "Dotfiles directory exists!"
 
 def manifest_setup():
+    global manifest
+
     # Open manifest file, or create it if it doesn't exist
     print "\nChecking for 'dotfiles.manifest'..."
     try:
-        manifest = open(manifest_dir, "r")
+        manifest = open(manifest_path, "r")
         print "Manifest file exists!"
     except IOError:
         print "Manifest file not found!"
         print "Creating empty 'dotfiles.manifest'..."
-        manifest = open(manifest_dir, "w+")
+        manifest = open(manifest_path, "w+")
         manifest.write("# updot.py Dotfile Manifest\n")
         manifest.write("# This file is used to define which dotfiles you want tracked with updot.py\n")
-        manifest.write("# Add the path to each dotfile you wish to track below this line\n")
+        manifest.write("# Add the path to each dotfile you wish to track below this line\n\n")
         manifest.close();
         try:
             print "Getting default text editor..."
             editor = os.environ.get('EDITOR')
             if editor == None:
-                print "$EDITOR environment variable not set. Defaulting to Vim for editing."
+                print "Default editor unknown. Defaulting to Vim for editing."
                 editor = "vim"
+            raw_input("Press Enter to continue editing manifest...")
             print "Opening manifest file in " + editor + " for editing..."
             time.sleep(1)
-            check_call([editor, manifest_dir])
+            check_call([editor, manifest_path])
             print "File contents updated by user.  Attempting to continue..."
-            time.sleep(1)
-            manifest = open(manifest_dir, "r")
+            manifest = open(manifest_path, "r")
         except OSError:
             print "\n" + editor + " not found. Unable to open manifest for user editing."
             print "Add to the manifest file the path of each dotfile you wish to track."
             print "Then run this script again."
             print "Exiting..."
-            sys.exit();
+            sys.exit()
+
+def update_links():
+    print "Updating symlinks..."
+    for name, path in files.iteritems():
+	if len(name) > 0 and len(path) > 0:
+            path = string.rstrip(path, "\n")
+            src_path = os.path.expanduser(path)
+	    dst_name = name
+            if name[0] == ".":
+                dst_name = name[1:]
+            dst_path = os.path.join(dotfiles_dir, dst_name)
+            print "Src: " + src_path
+            print "Dst: " + dst_path
+
+            if not os.path.islink(src_path) and not os.path.isfile(dst_path):
+                print "Moving " + name + " to dotfiles directory..."
+                shutil.move(src_path, dst_path)
+                print "Linking " + name + " into home directory..."
+                os.symlink(dst_path, src_path)
+            elif os.path.isfile(dst_path):
+                print "Removing " + name + " from home directory..."
+                try:
+                    os.remove(src_path)
+                except OSError:
+                    pass
+                print "Linking " + name + " into home directory..."
+                os.symlink(dst_path, src_path)
 
 def repo_setup():
     # Change to dotfiles repo directory
@@ -208,7 +275,6 @@ def repo_setup():
             print "Remote repository does not exist."
             print "Creating GitHub repository...\n"
 
-
             # Create repo on GitHub
             print "GitHub password required."
             call(["curl", silentflag, "-u", github_username, "https://api.github.com/user/repos", "-d", "{\"name\":\"dotfiles\", \"description\":\"My dotfiles repository\"}"], stdout = outstream)
@@ -218,7 +284,6 @@ def repo_setup():
             print "\nCreating initial commit..."
             call(["git", "add", ".", "-A"], stdout = outstream, stderr = errstream)
             call(["git", "commit", "-m", "\"Initial commit.\""], stdout = outstream, stderr = errstream)
-            call(["git", "push", "origin", "master"], stdout = outstream, stderr = errstream)
 
 def pull_changes():
     # Pull most recent files from remote repository for comparison
@@ -239,192 +304,36 @@ def pull_changes():
         readme.close()
         call(["git", "add", dotfiles_dir + "/README.md"], stdout = outstream, stderr = errstream)
 
-def other_crap():
-    # Open timestamp file, or create it if it doesn't exist
-    timestamps = None
-    try:
-        timestamps = open( dotfiles_dir + "/.timestamps", "r" )
-    except IOError:
-        print "\nTimestamps file not found."
-        print "Creating timestamps file..."
-        timestamps = open( dotfiles_dir + "/.timestamps", "w+" )
-        timestamps.close()
-        call( ["git", "add", dotfiles_dir + "/.timestamps"], stdout = outstream, stderr = errstream )
-        timestamps = open( dotfiles_dir + "/.timestamps", "r" )
+def push_changes():
+    print "Pushing updates to remote repository..."
+    call(["git", "add", ".", "-A"], stdout = outstream, stderr = errstream)
+    call(["git", "commit", "-m", "\"updot.py update\""], stdout = outstream, stderr = errstream)
+    call(["git", "push", "origin", "master"], stdout = outstream, stderr = errstream)
 
-    # Process timestamps files, and update file modified times
-    print "\nRestoring file timestamps..."
-    file_timestamps = {}
-    for file_time in timestamps:
-        split_str = file_time.split( "\t" )
-        name = split_str[0]
-        time = int( math.ceil( float( split_str[1][:-1] ) ) )
-        file_timestamps[ name ] = time
-        os.utime( name, (time,time) )
+def read_manifest():
+    global files
 
-    # Read manifest file
     print "\nReading manifest file..."
-    files = {}
     for path in manifest:
         # Don't process line if it is commented out
         if path[0] != "#":
-            filename = path.split( "/" )[-1][:-1]
-            files[ str(filename) ] = path
-
-    print "\nProcessing dotfiles...\n"
-
-    # copy each file to dotfiles
-    total_files = 0;
-    updated_files = 0;
-    invalid_files = 0;
-    new_files = 0;
-
-    no_update_files = 0;
-    non_existant_files = 0;
-
-    # Hold the file paths that need to be copied
-    # Key: src, Val: dest
-    update_remote = {}
-    update_local = {}
-    new_remote = {}
-    new_local = {}
-
-    for name, path in files.iteritems():
-        path = string.rstrip(path, "\n")
-        total_files += 1
-        fullpath = os.path.expanduser(path)
-
-        # Get local/remote times for comparison
-        local_time = None
-        remote_time = None
-        try:
-            local_time = int( math.ceil( float( os.path.getmtime( fullpath ) ) ) )
-        except OSError:
-            # File does not exist locally
-            local_time = 0
-
-        try:
-            remote_time = int( file_timestamps[ name ] )
-        except KeyError:
-            # No timestamp exists for this file
-            remote_time = 0
-
-        check_path = fullpath[1:].split( "/" )
-        print check_path[0]
-        print os.path.expanduser( "~" )
-        if check_path[0] == os.path.expanduser( "~" ):
-            print "EET WERKZ!"
-
-        if os.path.isfile(fullpath) or os.path.isdir(fullpath):
-            filename_str = os.path.basename(fullpath)
-            filename = dotfiles_dir + "/" + filename_str
-            if os.path.isfile(filename) and os.path.isfile( fullpath ):
-                # File is already in directory, and exists locally
-                # Check if local is newer
-                if local_time > remote_time:
-                    # Local is newer, mark for update
-                    print "Update remote - src: " + fullpath + " dest: " + filename
-                    update_remote[ fullpath ] = string.lstrip( filename, "." )
-                    updated_files += 1
-                    file_timestamps[ name ] = local_time
-                elif remote_time > local_time:
-                    # Remote file is newer than local, update local file
-                    print "Update local - src: " + fullpath + " dest: " + filename
-                    check_path = fullpath[1:].split( "/" )
-                    print check_path[0]
-                    print os.path.expanduser( "~" )
-                    if check_path[0] == os.path.expanduser( "~" ):
-                        print "EET WERKZ!"
-                    update_local[ filename ] = fullpath
-                else:
-                    # File times are the same, do nothing
-                    no_update_files += 1
-            elif os.path.isfile( fullpath ):
-                # File is not in directory, but does exist locally
-                print "New remote - src: " + fullpath + " dest: " + filename
-                new_remote[ fullpath ] = string.lstrip( filename, "." )
-                new_files += 1
-                file_timestamps[ name ] = local_time
-            elif os.path.isfile( filename ):
-                # File is in directory, but does not exist locally
-                print "New local - src: " + fullpath + " dest: " + filename
-                new_local[ filename ] = fullpath
-            else:
-                # The file does not exist locally or remotely, do nothing
-                non_existant_files += 1
-        else:
-            total_files -= 1
-            invalid_files += 1
-
-    # Save timestamps
-    timestamps.close()
-    timestamps = open( dotfiles_dir + "/.timestamps", "w" )
-    for path, time in file_timestamps.iteritems():
-        timestamps.write( str(path) + "\t" + str( time ) + "\n" )
-    timestamps.close()
-    call( ["git", "add", dotfiles_dir + "/.timestamps"], stdout = outstream, stderr = errstream )
-
-    remote_file_count = len( update_remote ) + len( new_remote )
-    if remote_file_count > 0:
-        print "Remote files marked for update:"
-        # Update all changed remote files
-        for src, dest in update_remote.iteritems():
-            filename_str = os.path.basename(src)
-            call(["cp", "-v", src, dest], stdout = outstream, stderr = errstream )
-            call(["git", "add", dest] )
-            print "Updating " + filename_str + "..."
-
-        # Add all new remote files
-        for src, dest in new_remote.iteritems():
-            filename_str = os.path.basename(src)
-            call(["cp", "-v", src, dest], stdout = outstream, stderr = errstream )
-            call(["git", "add", dest])
-            print "Adding " + filename_str + "..."
-
-        # Commit and push changes if remote files need updating
-        print "\nPushing changes...\n"
-        try:
-            check_call(["git", "commit", "-m", "updot.py update"], stdout = outstream, stderr = errstream )
-            check_call(["git", "push", "origin", "master"], stdout = outstream, stderr = errstream )
-            print "Push successful!"
-            print "Updated " + str( remote_file_count ) + " remote files successfully!"
-            print "All remote files up to date!"
-        except CalledProcessError:
-            print "Error pushing changes!"
-    else:
-        print "Nothing to push."
-        print "Remote files up to date!"
-
-
-    local_file_count = len( update_local ) + len( new_local )
-    if local_file_count > 0:
-        print "\nLocal files marked for update:"
-
-        # Update all changed local files
-        for src, dest in update_local.iteritems():
-            filename_str = os.path.basename(src)
-            call(["cp", "-v", src, dest], stdout = outstream, stderr = errstream )
-            print "Updating " + filename_str + "..."
-
-        # Add all new local files
-        for src, dest in new_local.iteritems():
-            filename_str = os.path.basename(src)
-            call(["cp", "-v", src, dest], stdout = outstream, stderr = errstream )
-            print "Copying " + filename_str + "..."
-
-        print "\nFile copy successful!"
-        print "Updated " + str( local_file_count ) + " local files successfully!"
-        print "All local files up to date!"
-    else:
-        print "\nNothing to copy."
-        print "Local files up to date!"
+            filename = path.split("/")[-1][:-1]
+            files[str(filename)] = path
 
 def main():
     print "updot v" + updot_version + " - Dotfile update script"
+
+    check_internet()
     github_setup()
     directory_setup()
-    manifest_setup()
     repo_setup()
+    pull_changes()
+    manifest_setup()
+    read_manifest()
+    update_links()
+    push_changes()
+
+    print "\nComplete - Dotfiles updated!"
 
 if __name__ == "__main__":
     main()
