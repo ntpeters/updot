@@ -224,7 +224,10 @@ def backup_file(file_name, src_path):
 
     dst_path = os.path.join(backup_dir, file_name)
 
-    shutil.move(src_path, dst_path)
+    try:
+        shutil.move(src_path, dst_path)
+    except IOError:
+        pass
 
 def update_links():
     print "\nUpdating symlinks...\n"
@@ -237,7 +240,7 @@ def update_links():
                 dst_name = name[1:]
             dst_path = os.path.join(dotfiles_dir, dst_name)
 
-            if not os.path.islink(src_path) and not os.path.isfile(dst_path):
+            if not os.path.islink(src_path) and os.path.exists(src_path) and not os.path.isfile(dst_path):
                 print "Moving " + name + " to dotfiles directory..."
                 shutil.move(src_path, dst_path)
                 print "Linking " + name + " into home directory..."
