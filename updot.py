@@ -220,7 +220,7 @@ def manifest_setup():
 
 def backup_file(file_name, src_path):
     if os.path.exists(src_path):
-        print "Removing " + name + " from home directory..."
+        print "Removing " + file_name + " from home directory..."
         if not os.path.exists(backup_dir):
             os.makedirs(backup_dir)
 
