@@ -219,15 +219,15 @@ def manifest_setup():
             sys.exit()
 
 def backup_file(file_name, src_path):
-    if not os.path.exists(backup_dir):
-        os.makedirs(backup_dir)
+    if os.path.exists(src_path):
+        print "Removing " + name + " from home directory..."
 
-    dst_path = os.path.join(backup_dir, file_name)
+        if not os.path.exists(backup_dir):
+            os.makedirs(backup_dir)
 
-    try:
+        dst_path = os.path.join(backup_dir, file_name)
+
         shutil.move(src_path, dst_path)
-    except IOError:
-        pass
 
 def update_links():
     print "\nUpdating symlinks...\n"
@@ -246,7 +246,6 @@ def update_links():
                 print "Linking " + name + " into home directory..."
                 os.symlink(dst_path, src_path)
             elif os.path.isfile(dst_path):
-                print "Removing " + name + " from home directory..."
                 backup_file(name, src_path)
                 print "Linking " + name + " into home directory..."
                 os.symlink(dst_path, src_path)
