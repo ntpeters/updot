@@ -124,7 +124,7 @@ def github_setup():
         print str(e.output)[:-1]
         if "denied" in str(e.output):
             print "Public key not setup with GitHub!"
-	    ssh_setup()
+            ssh_setup()
         else:
             print "Connected to GitHub successfully!"
 
@@ -221,21 +221,19 @@ def manifest_setup():
 def backup_file(file_name, src_path):
     if os.path.exists(src_path):
         print "Removing " + name + " from home directory..."
-
         if not os.path.exists(backup_dir):
             os.makedirs(backup_dir)
 
         dst_path = os.path.join(backup_dir, file_name)
-
         shutil.move(src_path, dst_path)
 
 def update_links():
     print "\nUpdating symlinks...\n"
     for name, path in files.iteritems():
-	if len(name) > 0 and len(path) > 0:
+        if len(name) > 0 and len(path) > 0:
             path = string.rstrip(path, "\n")
             src_path = os.path.expanduser(path)
-	    dst_name = name
+            dst_name = name
             if name[0] == ".":
                 dst_name = name[1:]
             dst_path = os.path.join(dotfiles_dir, dst_name)
