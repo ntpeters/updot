@@ -55,6 +55,7 @@ files           = {}
 updot_dir     = os.path.dirname(os.path.abspath( __file__ ))
 user_home_dir = os.path.expanduser( "~" )
 dotfiles_dir  = user_home_dir + "/dotfiles"
+backup_dir    = user_home_dir + "/.dotfiles_backup"
 ssh_key_path  = user_home_dir + "/.ssh/id_rsa.pub"
 manifest_path = dotfiles_dir + "/dotfiles.manifest"
 
@@ -175,10 +176,10 @@ def ssh_setup():
 def directory_setup():
     # Check if dotfile directory exists, and create it if it doesn't
     print "\nChecking for '~/dotfiles' directory..."
-    if not os.path.exists( dotfiles_dir ):
+    if not os.path.exists(dotfiles_dir):
         print "Dotfiles directory does not exist."
         print "Creating dotfiles directory..."
-        os.makedirs( dotfiles_dir )
+        os.makedirs(dotfiles_dir)
     else:
         print "Dotfiles directory exists!"
 
@@ -217,6 +218,14 @@ def manifest_setup():
             print "Exiting..."
             sys.exit()
 
+def backup_file(file_name, src_path):
+    if not os.path.exists(backup_dir):
+        os.makedirs(backup_dir)
+
+    dst_path = os.path.join(backup_dir, file_name)
+
+    shutil.move(src_path, dst_path)
+
 def update_links():
     print "\nUpdating symlinks...\n"
     for name, path in files.iteritems():
@@ -235,10 +244,7 @@ def update_links():
                 os.symlink(dst_path, src_path)
             elif os.path.isfile(dst_path):
                 print "Removing " + name + " from home directory..."
-                try:
-                    os.remove(src_path)
-                except OSError:
-                    pass
+                backup_file(name, src_path)
                 print "Linking " + name + " into home directory..."
                 os.symlink(dst_path, src_path)
 
@@ -248,10 +254,10 @@ def repo_setup():
 
     # Check if dotfiles directory is a git repo
     print "\nVerifying dotfiles directory is a git repository..."
-    try:
-        check_call(["git", "status"], stdout = outstream, stderr = errstream)
+
+    if os.path.exists(dotfiles_dir + "/.git"):
         print "Dotfiles directory is a git repo!"
-    except CalledProcessError:
+    else:
         # Init as a local git repo
         print "Dotfiles directory does not contain a git repository."
         print "Initializing local repository..."
@@ -267,9 +273,9 @@ def repo_setup():
         print "Adding dotfiles remote..."
         # Check if repo already exists
         try:
-            check_call(["git", "remote", "add", "origin", "git@github.com:" + github_username + "/dotfiles.git"], stdout = outstream, stderr = errstream)
-            check_call(["git", "fetch", "origin", "master"], stdout = outstream, stderr = errstream)
-        except CalledProcessError:
+            urllib2.urlopen("http://www.github.com/" + github_username + "/dotfiles")
+            call(["git", "remote", "add", "origin", "git@github.com:" + github_username + "/dotfiles.git"], stdout = outstream, stderr = errstream)
+        except HTTPError:
             print "Remote repository does not exist."
             print "Creating GitHub repository...\n"
 
