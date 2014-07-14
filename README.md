@@ -2,8 +2,11 @@
 Updot is a dotfile update script that keeps your dotfiles in sync between
 computers via GitHub.
 
-This script copies the specified dotfiles to `~/dotfiles`, and then symlinks
+This script moves the specified dotfiles to `~/dotfiles`, and then symlinks
 them back into their original locations.
+
+Dotfiles are not deleted when they are removed from the home directory, they
+are instead backed up to `~/.dotfiles_backup`
 
 ##Usage
 Just run `updot.py`, and the rest should be handled for you.
