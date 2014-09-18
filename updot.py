@@ -42,7 +42,7 @@ if debug:
     errstream = sys.stderr
     silentflag = ""
 
-# Scrpt vars
+# Script vars
 github_username = ""
 git_name        = ""
 git_email       = ""
@@ -50,6 +50,7 @@ manifest        = None
 timestamps      = None
 file_timestamps = {}
 files           = {}
+longest_name    = 0
 
 # Setup directory variables
 updot_dir     = os.path.dirname(os.path.abspath( __file__ ))
@@ -220,7 +221,6 @@ def manifest_setup():
 
 def backup_file(file_name, src_path):
     if os.path.exists(src_path):
-        print "Removing " + file_name + " from home directory..."
         if not os.path.exists(backup_dir):
             os.makedirs(backup_dir)
 
@@ -228,25 +228,59 @@ def backup_file(file_name, src_path):
         shutil.move(src_path, dst_path)
 
 def update_links():
-    print "\nUpdating symlinks...\n"
+    print "\nChecking symlinks...\n"
     for name, path in files.iteritems():
         if len(name) > 0 and len(path) > 0:
             path = string.rstrip(path, "\n")
             src_path = os.path.expanduser(path)
+            src_dir = src_path[:len(name) * -1]
             dst_name = name
             if name[0] == ".":
                 dst_name = name[1:]
             dst_path = os.path.join(dotfiles_dir, dst_name)
 
-            if not os.path.islink(src_path) and os.path.exists(src_path) and not os.path.isfile(dst_path):
-                print "Moving " + name + " to dotfiles directory..."
-                shutil.move(src_path, dst_path)
-                print "Linking " + name + " into home directory..."
-                os.symlink(dst_path, src_path)
-            elif os.path.isfile(dst_path):
-                backup_file(name, src_path)
-                print "Linking " + name + " into home directory..."
-                os.symlink(dst_path, src_path)
+            indent_space = " " * (longest_name - len(name))
+
+            # TODO: Possibly clean this section up
+            # Conditions:
+            # src = target dir (from manifest); dst = dotfile dir
+            # 1: src:exist  && dst:exist  => backup and link
+            # 2: src:!exist && dst:exist  => link
+            # 3: src:exists && dst:!exist => move and link
+            # 4: src:!exist && dst:!exist => warning
+            # 5: src:link   && dst:exist  => okay
+            # 6: src:!exist && dst:link   => delete link
+
+            if os.path.exists(dst_path):
+                if os.path.lexists(src_path):
+                    if not os.path.islink(src_path):
+                        #1: src:exist dst:exist => backup and link
+                        print name + indent_space + " - Removing from target directory: " + src_dir
+                        backup_file(name, src_path)
+                        print " " * len(name) + indent_space + " - Linking into target directory: " + src_dir
+                        os.symlink(dst_path, src_path)
+                    else:
+                        #5: src:link dst:exit => okay
+                        print name + indent_space + " - Okay"
+                else:
+                    #2: src:!exist dst:exist => link
+                    print name + indent_space + " - Linking into target directory: " + src_dir
+                    os.symlink(dst_path, src_path)
+            else:
+                if os.path.lexists(src_path):
+                    if os.path.islink(src_path):
+                        #6: src:link dst:!exist => delete link
+                        print name + indent_space + " - Removing dead link from target directory: " + src_dir
+                        os.remove(src_path)
+                    else:
+                        #3: src:exist dst:!exist => move and link
+                        print name + indent_space + " - Moving to dotfiles directory..."
+                        shutil.move(src_path, dst_path)
+                        print " " * len(name) + indent_space + " - Linking into target directory: " + src_dir
+                        os.symlink(dst_path, src_path)
+                else:
+                    #4: src:!exist dst:!exist => warning
+                    print name + indent_space + " - Warning: present in manifest, but no remote or local copy exists!"
 
 def repo_setup():
     # Change to dotfiles repo directory
@@ -316,6 +350,7 @@ def push_changes():
 
 def read_manifest():
     global files
+    global longest_name
 
     print "\nReading manifest file..."
     for path in manifest:
@@ -323,6 +358,7 @@ def read_manifest():
         if path[0] != "#":
             filename = path.split("/")[-1][:-1]
             files[str(filename)] = path
+            longest_name = len(filename) if (len(filename) > longest_name) else longest_name
 
 def main():
     print "updot v" + updot_version + " - Dotfile update script"
