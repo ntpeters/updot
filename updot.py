@@ -8,11 +8,8 @@
 # Files to be updated should be included in a 'dotfiles.manifest' file in the
 # 'dotfiles' directory that this script will create in your home directory.
 
-# Import Python3's print function in Python2
-#try:
+# Import Python 3's print function in Python 2
 from __future__ import print_function
-#except:
-    #None
 
 from subprocess import call, check_output, check_call, CalledProcessError, STDOUT
 import os
@@ -23,9 +20,38 @@ import time
 import math
 import socket
 import getpass
-import urllib2
 import shutil
 import argparse
+
+# Get proper urllib for Python version
+try:
+    # Python 3
+    import urllib.request as urllib2
+except:
+    # Python 2
+    import urllib2
+
+# Setup input for use in Python 2 or 3
+try:
+    input = raw_input
+except NameError:
+    pass
+
+# Define iter funcs based on Python version
+try:
+    dict.iteritems
+except AttributeError:
+    # Python 3
+    def itervalues(d):
+        return iter(d.values())
+    def iteritems(d):
+        return iter(d.items())
+else:
+    # Python 2
+    def itervalues(d):
+        return d.itervalues()
+    def iteritems(d):
+        return d.iteritems()
 
 # Script version
 updot_version = "2.0"
@@ -108,7 +134,7 @@ def github_setup():
     except CalledProcessError:
         sprint("\nName not found in git config.")
         sprint("Please provide the name you would like associated with your commits (ie. Mike Grimes)")
-        git_name = raw_input('Enter Name: ')
+        git_name = input('Enter Name: ')
         call(["git", "config", "--global", "user.name", git_name])
         sprint("Name stored in git config. Welcome to git, " + git_name + "!")
 
@@ -119,7 +145,7 @@ def github_setup():
     except CalledProcessError:
         sprint("\nEmail not found in git config.")
         sprint("Please provide the email you would like associated with your commits.")
-        git_email = raw_input('Enter Email: ')
+        git_email = input('Enter Email: ')
         call(["git", "config", "--global", "user.email", git_email])
         sprint("Email stored to git config.")
 
@@ -134,9 +160,15 @@ def github_setup():
     # Check if GitHub username has been set
     if len(github_username) == 0:
         sprint("No GitHub username found. Please provide one now.")
-        github_username = raw_input('Enter GitHub username: ')
+        github_username = input('Enter GitHub username: ')
         sprint("Storing username in git config.")
         call(["git", "config", "--global", "github.user", github_username], stdout = outstream, stderr = errstream)
+
+    # Decode the username string if needed
+    try:
+        github_username = github_username.decode()
+    except:
+        pass
 
     sprint("GitHub Username: " + github_username)
 
@@ -144,7 +176,7 @@ def github_setup():
     try:
         check_output(["ssh", "-T", "git@github.com"], stderr = STDOUT)
     except CalledProcessError as e:
-        sprint(str(e.output)[:-1])
+        sprint(e.output.decode()[:-1])
         if "denied" in str(e.output):
             sprint("Public key not setup with GitHub!")
             ssh_setup()
@@ -165,6 +197,7 @@ def ssh_setup():
 
     sprint("\nAdding to SSH agent...")
     try:
+        # TODO: Fix this
         check_call(["eval", "\"$(ssh-agent -s)\""])
         check_call(["ssh-add", "~/.ssh/id_rsa"])
         sprint("Key added to agent successfully.")
@@ -184,7 +217,7 @@ def ssh_setup():
     except CalledProcessError:
         add_fail = True
 
-    if "Bad credentials" in response:
+    if "Bad credentials" in response.decode():
         add_fail = True
 
     if add_fail:
@@ -228,7 +261,7 @@ def manifest_setup():
             if editor == None:
                 sprint("Default editor unknown. Defaulting to Vim for editing.")
                 editor = "vim"
-            raw_input("Press Enter to continue editing manifest...")
+            input("Press Enter to continue editing manifest...")
             sprint("Opening manifest file in " + editor + " for editing...")
             time.sleep(1)
             check_call([editor, manifest_path])
@@ -251,9 +284,9 @@ def backup_file(file_name, src_path):
 
 def update_links():
     sprint("\nChecking symlinks...\n")
-    for name, path in files.iteritems():
+    for name, path in iteritems(files):
         if len(name) > 0 and len(path) > 0:
-            path = string.rstrip(path, "\n")
+            path = path.strip("\n")
             src_path = os.path.expanduser(path)
             src_dir = src_path[:len(name) * -1]
             dst_name = name
