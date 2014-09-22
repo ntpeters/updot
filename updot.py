@@ -80,6 +80,7 @@ errstream = devnull
 github_username = ""
 git_name        = ""
 git_email       = ""
+commit_message  = "updot.py update"
 manifest        = None
 timestamps      = None
 file_timestamps = {}
@@ -400,7 +401,7 @@ def pull_changes():
 def push_changes():
     sprint("\nPushing updates to remote repository...")
     call(["git", "add", ".", "-A"], stdout = outstream, stderr = errstream)
-    call(["git", "commit", "-m", "\"updot.py update\""], stdout = outstream, stderr = errstream)
+    call(["git", "commit", "-m", commit_message], stdout = outstream, stderr = errstream)
     call(["git", "push", "origin", "master"], stdout = outstream, stderr = errstream)
 
 def read_manifest():
@@ -419,11 +420,13 @@ def main():
     global silent
     global sprint
     global dprint
+    global commit_message
 
     # Parse command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--debug", help="Print debug output during execution", action="store_true")
     parser.add_argument("-s", "--silent", help="Print nothing during execution", action="store_true")
+    parser.add_argument("-m", "--message", help="Add a custom message to this commit")
     args = parser.parse_args()
 
     # Set options based on args
@@ -431,6 +434,10 @@ def main():
         silent = True
     elif args.debug:
         set_debug()
+
+    # Set custom commit message if one was provided
+    if args.message:
+        commit_message = args.message
 
     # Setup custom print functions
     sprint = print if not silent else lambda *a, **k: None
