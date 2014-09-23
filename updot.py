@@ -384,6 +384,13 @@ def pull_changes():
     sprint("\nPulling most recent revisions from remote repository...")
     call(["git", "pull", "origin", "master"], stdout = outstream, stderr = errstream)
 
+    status = check_output(["git", "diff", "--name-status", "HEAD^", "HEAD"])
+    if len(status) > 0:
+        sprint("\nRemote Changes:")
+        parse_print_diff(status)
+    else:
+        sprint("No remote changes!")
+
     # Check for a readme, and create one if one doesn't exist
     if not os.path.isfile("README.md"):
         #Create Readme file
@@ -399,10 +406,17 @@ def pull_changes():
         call(["git", "add", dotfiles_dir + "/README.md"], stdout = outstream, stderr = errstream)
 
 def push_changes():
-    sprint("\nPushing updates to remote repository...")
     call(["git", "add", ".", "-A"], stdout = outstream, stderr = errstream)
-    call(["git", "commit", "-m", commit_message], stdout = outstream, stderr = errstream)
-    call(["git", "push", "origin", "master"], stdout = outstream, stderr = errstream)
+
+    status = check_output(["git", "diff", "--name-status", "--cached"])
+    if len(status) > 0:
+        sprint("\nLocal Changes:")
+        parse_print_diff(status)
+        sprint("\nPushing updates to remote repository...")
+        call(["git", "commit", "-m", commit_message], stdout = outstream, stderr = errstream)
+        call(["git", "push", "origin", "master"], stdout = outstream, stderr = errstream)
+    else:
+        sprint("\nNo changes to push!")
 
 def read_manifest():
     global files
@@ -416,6 +430,78 @@ def read_manifest():
             files[str(filename)] = path
             longest_name = len(filename) if (len(filename) > longest_name) else longest_name
 
+def parse_print_diff(diff_string):
+    file_statuses = diff_string.split("\n")
+
+    status_dict = {}
+    longest_status = 0
+    for file_status in file_statuses:
+        if(len(file_status) > 0):
+            code = file_status[:1]
+            name = file_status[1:].strip()
+            status_dict[name] = code
+            longest_status = len(name) if len(name) > longest_status else longest_status
+
+    for name, code in status_dict.iteritems():
+        indent_space = (longest_status - len(name)) * " "
+
+        line = name + indent_space + " - "
+        if code == "M":
+            line += "Modified"
+        elif code == "A":
+            line += "Added"
+        elif code == "D":
+            line += "Deleted"
+        elif code == "R":
+            line += "Renamed"
+        elif code == "C":
+            line += "Copied"
+        elif code == "U":
+            line += "Updated (Unmerged)"
+
+        sprint(line)
+
+def get_status():
+    if os.path.exists(dotfiles_dir):
+        os.chdir(dotfiles_dir)
+
+        changes_found = False
+
+        # Get local status
+        try:
+            # Mark all untracked files with 'intent to add'
+            check_call(["git", "add", "-N", "."], stdout = outstream, stderr = errstream)
+            status = check_output(["git", "diff", "--name-status"])
+            status += check_output(["git", "diff", "--name-status", "--cached"])
+        except CalledProcessError:
+            sprint("\nError: Unable to get local status")
+
+        if len(status) > 0:
+            sprint("\nLocal Dotfiles Status:")
+            parse_print_diff(status)
+            changes_found = True
+        else:
+            sprint("\nNo local changes!")
+
+        # Get remote status
+        try:
+            check_call(["git", "fetch", "origin"], stdout = outstream, stderr = errstream)
+            status = check_output(["git", "diff", "origin/master", "HEAD", "--name-status"])
+        except CalledProcessError:
+            sprint("\nError: Unable to get remote status")
+
+        if len(status) > 0:
+            sprint("\nRemote Dotfiles Status:")
+            parse_print_diff(status)
+            changes_found = True
+        else:
+            sprint("\nNo remote changes!")
+
+        if changes_found:
+            sprint("\nChanges Detected: You should run Updot to sync changes")
+    else:
+        sprint("\nError: Dotfiles directory does not exist")
+
 def main():
     global silent
     global sprint
@@ -427,6 +513,7 @@ def main():
     parser.add_argument("-d", "--debug", help="Print debug output during execution", action="store_true")
     parser.add_argument("-s", "--silent", help="Print nothing during execution", action="store_true")
     parser.add_argument("-m", "--message", help="Add a custom message to this commit")
+    parser.add_argument("--status", help="Print the current status of the dotfiles directory", action="store_true")
     args = parser.parse_args()
 
     # Set options based on args
@@ -446,6 +533,11 @@ def main():
     sprint("updot v" + updot_version + " - Dotfile update script")
     if debug:
         sprint("Debug Mode: Enabled")
+
+    # Print the dotfile dir status and exit
+    if args.status:
+        get_status()
+        exit()
 
     # Execute script
     check_internet()
