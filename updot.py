@@ -241,12 +241,10 @@ def ssh_setup():
 
     sprint("\nAdding to SSH agent...")
     try:
-        # TODO: Fix this
-        check_call(["eval", "\"$(ssh-agent -s)\""])
         check_call(["ssh-add", "~/.ssh/id_rsa"])
         sprint("Key added to agent successfully.")
     except (CalledProcessError, OSError):
-        sprint("Failed to add to agent (probably not an issue)")
+        sprint("Failed to add to agent. Is 'ssh-agent' running?")
 
     pub_key = open(ssh_key_path, "r")
 
