@@ -8,8 +8,9 @@
 # Files to be updated should be included in a 'dotfiles.manifest' file in the
 # 'dotfiles' directory that this script will create in your home directory.
 
-# Import Python 3's print function in Python 2
 from __future__ import print_function
+from __future__ import unicode_literals
+from __future__ import absolute_import
 
 from subprocess import call, check_output, check_call, CalledProcessError, STDOUT
 import os
@@ -22,6 +23,8 @@ import socket
 import getpass
 import shutil
 import argparse
+import json
+import base64
 
 # Get proper urllib for Python version
 try:
@@ -108,6 +111,46 @@ def set_debug():
         outstream = sys.stdout
         errstream = sys.stderr
         silentflag = ""
+
+def basic_auth(username, password):
+    return 'Basic %s' % base64.encodestring(('%s:%s' %  (username, password)).encode('UTF-8')).strip().decode('UTF-8')
+
+def post_request(url, data, username):
+    #sprint("Password Required.")
+    #passwd = getpass.getpass()
+
+    headers = { 'Content-Type' : 'application/json' }
+    request = urllib2.Request(url, data, headers)
+
+    retries = 0
+    max_attempts = 1
+    while retries < max_attempts:
+        try:
+            response = urllib2.urlopen(request)
+            success = True
+        except urllib2.HTTPError as error:
+            if error.code == 401:
+                otp_header = error.info().get('X-Github-OTP')
+                dprint("X-Github-OTP: " + str(otp_header))
+                if otp_header and "required" in otp_header:
+                    sprint("Two-Factor Authentication enabled for your account!")
+                    sprint("Please enter 2FA code to continue.")
+                    auth_code = input("2FA Code: ")
+                    request.add_header('X-Github-OTP', auth_code)
+                    continue
+                else:
+                    sprint("Password Required.")
+                    passwd = getpass.getpass()
+                    auth = basic_auth(username, passwd)
+                    dprint("Auth: " + auth)
+                    request.add_header('Authorization', auth)
+                    continue
+
+            success = False
+
+        retries += 1
+
+    return success
 
 def check_internet():
     # Try connecting to Google to see if there is an active internet connection
@@ -208,27 +251,23 @@ def ssh_setup():
     pub_key = open(ssh_key_path, "r")
 
     sprint("\nAdding key to GitHub...")
-    hostname = socket.gethostname().split('.')[0]
+    hostname = socket.gethostname()
     username = getpass.getuser()
     response = ""
-    add_fail = False
-    try:
-        json = "{\"title\":\"" + username + "@" + hostname + "\", \"key\":\"" + pub_key.read()[:-2] + "\"}"
-        response = check_output(["curl", silentflag, "-u", github_username, "https://api.github.com/user/keys", "-d", json])
-    except CalledProcessError:
-        add_fail = True
-
-    if "Bad credentials" in response.decode():
-        add_fail = True
-
-    if add_fail:
+    data_dict = { 'title' : username + "@" + hostname,
+            'key'   : pub_key.read().strip()
+            }
+    data = json.dumps(data_dict).encode("UTF-8")
+    url = "https://api.github.com/user/keys"
+    post_succeeded = post_request(url, data, github_username)
+    if post_succeeded:
+        sprint("Key added to GitHub successfully!")
+    else:
         sprint("Failed to add key to GitHub account!")
         sprint("Please follow the directions on the following page, then rerun this script:")
         sprint("https://help.github.com/articles/generating-ssh-keys")
         sprint("Exiting...")
         sys.exit()
-    else:
-        sprint("Key added to GitHub successfully!")
 
 def directory_setup():
     # Check if dotfile directory exists, and create it if it doesn't
@@ -357,21 +396,27 @@ def repo_setup():
     sprint("\nChecking for remote repository...")
     try:
         check_call(["git", "fetch", "origin", "master"], stdout = outstream, stderr = errstream)
-        sprint("Remote repository exists!")
+        sprint("Repository has remote!")
     except CalledProcessError:
-        sprint("No remote repository found.")
+        sprint("No remote added to repository!")
         sprint("Adding dotfiles remote...")
         # Check if repo already exists
         try:
             urllib2.urlopen("http://www.github.com/" + github_username + "/dotfiles")
             call(["git", "remote", "add", "origin", "git@github.com:" + github_username + "/dotfiles.git"], stdout = outstream, stderr = errstream)
-        except HTTPError:
+            sprint("Remote added successfully.")
+        except urllib2.HTTPError:
             sprint("Remote repository does not exist.")
             sprint("Creating GitHub repository...\n")
 
             # Create repo on GitHub
-            sprint("GitHub password required.")
-            call(["curl", silentflag, "-u", github_username, "https://api.github.com/user/repos", "-d", "{\"name\":\"dotfiles\", \"description\":\"My dotfiles repository\"}"], stdout = outstream)
+            url = "https://api.github.com/user/repos"
+            data_dict = { 'name' : 'dotfiles',
+                    'description' : 'My dotfiles repository'
+                    }
+            data = json.dumps(data_dict).encode("UTF-8")
+            post_request(url, data, github_username)
+
             sprint("\nAdding dotfiles remote...")
             call(["git", "remote", "add", "origin", "git@github.com:" + github_username + "/dotfiles.git"], stdout = outstream, stderr = errstream)
 
@@ -380,16 +425,37 @@ def repo_setup():
             call(["git", "commit", "-m", "\"Initial commit.\""], stdout = outstream, stderr = errstream)
 
 def pull_changes():
-    # Pull most recent files from remote repository for comparison
-    sprint("\nPulling most recent revisions from remote repository...")
-    call(["git", "pull", "origin", "master"], stdout = outstream, stderr = errstream)
+    sprint("\nChecking for remote changes...")
 
-    status = check_output(["git", "diff", "--name-status", "HEAD^", "HEAD"])
-    if len(status) > 0:
-        sprint("\nRemote Changes:")
-        parse_print_diff(status)
+    # Only pull if master branch exists
+    remote_branches = check_output(["git", "ls-remote", "--heads"], stderr = errstream)
+    if "master" in remote_branches.decode("UTF-8"):
+        try:
+            # Check if we need to pull
+            for i in range(2):
+                try:
+                    check_call(["git", "fetch", "origin", "master"], stdout = outstream, stderr = errstream)
+                    status = check_output(["git", "diff", "origin/master", "HEAD", "--name-status"], stderr = errstream)
+                    break
+                except CalledProcessError:
+                    check_call(["git", "remote", "update", "--prune"], stdout = outstream, stderr = errstream)
+                    check_call(["git", "checkout", "master", "--force"], stdout = outstream, stderr = errstream)
+
+
+            if status == None:
+                sprint("\nUnable to pull changes: Error reaching repository.")
+            elif len(status) > 0:
+                sprint("\nRemote Changes:")
+                parse_print_diff(status)
+
+                sprint("\nPulling most recent revisions from remote repository...")
+                check_call(["git", "pull", "origin", "master"], stdout = outstream, stderr = errstream)
+            else:
+                sprint("\nNo remote changes!")
+        except CalledProcessError:
+            sprint("\nFailed to pull changes.")
     else:
-        sprint("No remote changes!")
+        sprint("\nNo remote master found! Not pulling.")
 
     # Check for a readme, and create one if one doesn't exist
     if not os.path.isfile("README.md"):
@@ -408,13 +474,16 @@ def pull_changes():
 def push_changes():
     call(["git", "add", ".", "-A"], stdout = outstream, stderr = errstream)
 
-    status = check_output(["git", "diff", "--name-status", "--cached"])
+    status = check_output(["git", "diff", "--name-status", "--cached"], stderr = errstream)
     if len(status) > 0:
         sprint("\nLocal Changes:")
         parse_print_diff(status)
         sprint("\nPushing updates to remote repository...")
-        call(["git", "commit", "-m", commit_message], stdout = outstream, stderr = errstream)
-        call(["git", "push", "origin", "master"], stdout = outstream, stderr = errstream)
+        try:
+            check_call(["git", "commit", "-m", commit_message], stdout = outstream, stderr = errstream)
+            check_call(["git", "push", "origin", "master"], stdout = outstream, stderr = errstream)
+        except CalledProcessError:
+            sprint("Error: Failed to push changes!")
     else:
         sprint("\nNo changes to push!")
 
@@ -431,7 +500,7 @@ def read_manifest():
             longest_name = len(filename) if (len(filename) > longest_name) else longest_name
 
 def parse_print_diff(diff_string):
-    file_statuses = diff_string.split("\n")
+    file_statuses = diff_string.decode('UTF-8').split("\n")
 
     status_dict = {}
     longest_status = 0
@@ -442,7 +511,7 @@ def parse_print_diff(diff_string):
             status_dict[name] = code
             longest_status = len(name) if len(name) > longest_status else longest_status
 
-    for name, code in status_dict.iteritems():
+    for name, code in iteritems(status_dict):
         indent_space = (longest_status - len(name)) * " "
 
         line = name + indent_space + " - "
@@ -458,6 +527,8 @@ def parse_print_diff(diff_string):
             line += "Copied"
         elif code == "U":
             line += "Updated (Unmerged)"
+        else:
+            line += "Unknown Status (" + code + ")"
 
         sprint(line)
 
@@ -473,29 +544,30 @@ def get_status():
             check_call(["git", "add", "-N", "."], stdout = outstream, stderr = errstream)
             status = check_output(["git", "diff", "--name-status"])
             status += check_output(["git", "diff", "--name-status", "--cached"])
+
+            if len(status) > 0:
+                sprint("\nLocal Dotfiles Status:")
+                parse_print_diff(status)
+                changes_found = True
+            else:
+                sprint("\nNo local changes!")
         except CalledProcessError:
             sprint("\nError: Unable to get local status")
 
-        if len(status) > 0:
-            sprint("\nLocal Dotfiles Status:")
-            parse_print_diff(status)
-            changes_found = True
-        else:
-            sprint("\nNo local changes!")
 
         # Get remote status
         try:
             check_call(["git", "fetch", "origin"], stdout = outstream, stderr = errstream)
-            status = check_output(["git", "diff", "origin/master", "HEAD", "--name-status"])
+            status = check_output(["git", "diff", "origin/master", "HEAD", "--name-status"], stderr = errstream)
+
+            if len(status) > 0:
+                sprint("\nRemote Dotfiles Status:")
+                parse_print_diff(status)
+                changes_found = True
+            else:
+                sprint("\nNo remote changes!")
         except CalledProcessError:
             sprint("\nError: Unable to get remote status")
-
-        if len(status) > 0:
-            sprint("\nRemote Dotfiles Status:")
-            parse_print_diff(status)
-            changes_found = True
-        else:
-            sprint("\nNo remote changes!")
 
         if changes_found:
             sprint("\nChanges Detected: You should run Updot to sync changes")
