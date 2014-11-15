@@ -11,8 +11,7 @@ are instead backed up to `~/.dotfiles_backup`
 ##Installation
 You can grab the script with the following call:
 ```
-curl https://raw.githubusercontent.com/magrimes/updot/master/updot.py -o
-.updot/updot.py --create-dirs
+curl https://raw.githubusercontent.com/magrimes/updot/master/updot.py -o .updot/updot.py --create-dirs
 ```
 
 For ease of use I would also recommend adding the following alias to your
