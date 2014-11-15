@@ -57,7 +57,7 @@ else:
         return d.iteritems()
 
 # Script version
-updot_version = "2.1"
+updot_version = "2.11"
 
 # When false, unnecessary output is suppressed
 debug = False
@@ -152,10 +152,22 @@ def post_request(url, data, username):
 
     return success
 
-def check_internet():
-    # Try connecting to Google to see if there is an active internet connection
+def check_dependencies():
+    # Check if git is installed
+    sprint("\nChecking for git...")
+    try:
+        check_call(["git", "--version"], stdout = outstream, stderr = errstream)
+        sprint("Git installation - Okay")
+    except (OSError, CalledProcessError):
+        sprint("Git not found!")
+        sprint("Install git, then rerun this script.")
+        sprint("Exiting...")
+        sys.exit()
+
+    # Ensure there is an internet connection
     sprint("\nChecking internet connection...")
     try:
+        # Try connecting to Google to see if there is an active internet connection
         urllib2.urlopen('http://74.125.225.103/', timeout = 1)
         sprint("Internet connection - Okay")
     except urllib2.URLError:
@@ -610,7 +622,7 @@ def main():
         exit()
 
     # Execute script
-    check_internet()
+    check_dependencies()
     github_setup()
     directory_setup()
     repo_setup()
