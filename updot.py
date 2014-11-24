@@ -84,7 +84,7 @@ else:
         return d.iteritems()
 
 # Script version
-updot_version = "2.11"
+updot_version = "2.12"
 
 # When false, unnecessary output is suppressed
 debug = False
