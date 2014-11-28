@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # Updot - Dotfile Updater
 #
 # Authors:  Mike Grimes   <magrimes@mtu.edu>
