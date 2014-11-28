@@ -39,8 +39,6 @@ except:
         """
         Run command with arguments and return its output as a byte string.
         Backported from Python 2.7 as it's implemented as pure python on stdlib.
-        >>> check_output(['/usr/bin/python', '--version'])
-        Python 2.6.2
         """
         process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
         output, unused_err = process.communicate()
@@ -128,6 +126,7 @@ ssh_key_path  = user_home_dir + "/.ssh/id_rsa.pub"
 manifest_path = dotfiles_dir + "/dotfiles.manifest"
 
 def set_debug():
+    """Enable debug mode"""
     global debug
     global outstream
     global errstream
@@ -142,12 +141,26 @@ def set_debug():
         silentflag = ""
 
 def basic_auth(username, password):
+    """
+    Compose a basic auth string.
+
+    Keyword Args:
+    username -- the username to encode
+    password -- the password to encode
+    """
     return 'Basic %s' % base64.encodestring(('%s:%s' %  (username, password)).encode('UTF-8')).strip().decode('UTF-8')
 
 def post_request(url, data, username):
-    #sprint("Password Required.")
-    #passwd = getpass.getpass()
+    """
+    Issue a post request to a remote host.
+    Handles user authentication.
+    Also handles two-factor authentication with GitHub.
 
+    Keyword Args:
+    url -- the url to post to
+    data -- the payload to post to the url
+    username -- the username to authenticate with the remote host
+    """
     headers = { 'Content-Type' : 'application/json' }
     request = urllib2.Request(url, data, headers)
 
@@ -182,6 +195,10 @@ def post_request(url, data, username):
     return success
 
 def check_dependencies():
+    """
+    Verify script dependencies prior to execution.
+    Checks for a git installation and an active internet connection.
+    """
     # Check if git is installed
     sprint("\nChecking for git...")
     try:
@@ -206,6 +223,9 @@ def check_dependencies():
         sys.exit()
 
 def github_setup():
+    """
+    Ensures that git config is setup and remote access to GitHub is successful.
+    """
     global git_name
     global git_email
     global github_username
@@ -269,6 +289,10 @@ def github_setup():
             sprint("Connected to GitHub successfully!")
 
 def ssh_setup():
+    """
+    Checks for a public SSH key and creates one if none is found.
+    Also attempts to add key to the ssh-agent.
+    """
     sprint("\nChecking for existing local public key...")
     pub_key = None
     try:
@@ -309,6 +333,7 @@ def ssh_setup():
         sys.exit()
 
 def directory_setup():
+    """Ensures that the dotfiles directory exists, and creates it otherwise."""
     # Check if dotfile directory exists, and create it if it doesn't
     sprint("\nChecking for '~/dotfiles' directory...")
     if not os.path.exists(dotfiles_dir):
@@ -319,6 +344,11 @@ def directory_setup():
         sprint("Dotfiles directory exists!")
 
 def manifest_setup():
+    """
+    Ensures a manifest file exists in the dotfiles directory.
+    If none is found one is created, and it is opened for editing by the user.
+    Attempts to use system default editor, otherwise defaults to vi.
+    """
     global manifest
 
     # Open manifest file, or create it if it doesn't exist
@@ -339,7 +369,7 @@ def manifest_setup():
             editor = os.environ.get('EDITOR')
             if editor == None:
                 sprint("Default editor unknown. Defaulting to Vim for editing.")
-                editor = "vim"
+                editor = "vi"
             input("Press Enter to continue editing manifest...")
             sprint("Opening manifest file in " + editor + " for editing...")
             time.sleep(1)
@@ -354,6 +384,13 @@ def manifest_setup():
             sys.exit()
 
 def backup_file(file_name, src_path):
+    """
+    Moves file to backup directory. This is used in place of deleting files.
+
+    Keyword Args:
+    file_name -- name of the file to backup
+    src_path -- path to the file to be backed up
+    """
     if os.path.exists(src_path):
         if not os.path.exists(backup_dir):
             os.makedirs(backup_dir)
@@ -362,6 +399,23 @@ def backup_file(file_name, src_path):
         shutil.move(src_path, dst_path)
 
 def update_links():
+    """
+    Updates all symlinks to files in the manifest, ensuring they are all valid.
+
+    Cases Handled:
+    1. A file exists in both the dotfile and target directories: It is removed
+    from the target directory and linked.
+    2. The file does not exist in the target directory, but does in the dotfile
+    directory: It is linked.
+    3. The file exists in the target directory, but not the dotfile directory:
+    It is moved to the dotfile directory and linked.
+    4. The file does not exist in target or dotfile directories: A warning is
+    displayed.
+    5. The file exists in the dotfile directory, and a link exists in the target
+    directory: Nothing is done.
+    6. The file does not exist in the dotfile directory, and a link exists in
+    the target directory: The dead link is removed.
+    """
     sprint("\nChecking symlinks...\n")
     for name, path in iteritems(files):
         if len(name) > 0 and len(path) > 0:
@@ -375,15 +429,14 @@ def update_links():
 
             indent_space = " " * (longest_name - len(name))
 
-            # TODO: Possibly clean this section up
-            # Conditions:
+            # Handle Possible Conditions:
             # src = target dir (from manifest); dst = dotfile dir
             # 1: src:exist  && dst:exist  => backup and link
             # 2: src:!exist && dst:exist  => link
             # 3: src:exists && dst:!exist => move and link
             # 4: src:!exist && dst:!exist => warning
             # 5: src:link   && dst:exist  => okay
-            # 6: src:!exist && dst:link   => delete link
+            # 6: src:link   && dst:!exist => delete link
 
             if os.path.exists(dst_path):
                 if os.path.lexists(src_path):
@@ -417,6 +470,11 @@ def update_links():
                     sprint(name + indent_space + " - Warning: present in manifest, but no remote or local copy exists!")
 
 def repo_setup():
+    """
+    Ensures local and remote git repositories are set up.
+    If no local repo is found, one is initialized.
+    If no remote repo is found on GitHub, one is created use the GitHub API.
+    """
     # Change to dotfiles repo directory
     os.chdir(dotfiles_dir)
 
@@ -464,6 +522,7 @@ def repo_setup():
             call(["git", "commit", "-m", "\"Initial commit.\""], stdout = outstream, stderr = errstream)
 
 def pull_changes():
+    """Check for remote changes, and pull if any are found."""
     sprint("\nChecking for remote changes...")
 
     # Only pull if master branch exists
@@ -480,7 +539,6 @@ def pull_changes():
                     check_call(["git", "remote", "update", "--prune"], stdout = outstream, stderr = errstream)
                     check_call(["git", "checkout", "master", "--force"], stdout = outstream, stderr = errstream)
 
-
             if status == None:
                 sprint("\nUnable to pull changes: Error reaching repository.")
             elif len(status) > 0:
@@ -496,21 +554,8 @@ def pull_changes():
     else:
         sprint("\nNo remote master found! Not pulling.")
 
-    # Check for a readme, and create one if one doesn't exist
-    if not os.path.isfile("README.md"):
-        #Create Readme file
-        sprint("\nReadme not found.")
-        sprint("Creating readme file...")
-        readme = open("README.md", "w+")
-        readme.write("dotfiles\n")
-        readme.write("========\n")
-        readme.write("My dotfiles repository.\n\n")
-        readme.write("Created and maintained by the awesome 'updot.py' script!\n\n")
-        readme.write("Get the script for yourself here: https://github.com/magrimes/updot\n")
-        readme.close()
-        call(["git", "add", dotfiles_dir + "/README.md"], stdout = outstream, stderr = errstream)
-
 def push_changes():
+    """Add, commit, and push all changes to the dotfiles."""
     call(["git", "add", ".", "-A"], stdout = outstream, stderr = errstream)
 
     status = check_output(["git", "diff", "--name-status", "--cached"], stderr = errstream)
@@ -526,7 +571,25 @@ def push_changes():
     else:
         sprint("\nNo changes to push!")
 
+def check_readme():
+    """Check if a readme exists, and create a default one if not."""
+    # Check for a readme, and create one if one doesn't exist
+    if not os.path.isfile("README.md"):
+        #Create Readme file
+        sprint("\nReadme not found.")
+        sprint("Creating readme file...")
+        readme = open("README.md", "w+")
+        readme.write("dotfiles\n")
+        readme.write("========\n")
+        readme.write("My dotfiles repository.\n\n")
+        readme.write("Created and maintained by the awesome 'updot.py' script!\n\n")
+        readme.write("Get the script for yourself here: https://github.com/magrimes/updot\n")
+        readme.close()
+        call(["git", "add", dotfiles_dir + "/README.md"], stdout = outstream, stderr = errstream)
+
+
 def read_manifest():
+    """Read in the file paths to track from the manifest file."""
     global files
     global longest_name
 
@@ -539,6 +602,13 @@ def read_manifest():
             longest_name = len(filename) if (len(filename) > longest_name) else longest_name
 
 def parse_print_diff(diff_string):
+    """
+    Parses the git diff file statuses and prints them out in a more readable
+    format.
+
+    Keyword Args:
+    diff_string -- git diff status string to process
+    """
     file_statuses = diff_string.decode('UTF-8').split("\n")
 
     status_dict = {}
@@ -572,6 +642,7 @@ def parse_print_diff(diff_string):
         sprint(line)
 
 def get_status():
+    """Display the status of local and remote dotfiles."""
     if os.path.exists(dotfiles_dir):
         os.chdir(dotfiles_dir)
 
@@ -592,7 +663,6 @@ def get_status():
                 sprint("\nNo local changes!")
         except CalledProcessError:
             sprint("\nError: Unable to get local status")
-
 
         # Get remote status
         try:
@@ -656,6 +726,7 @@ def main():
     directory_setup()
     repo_setup()
     pull_changes()
+    check_readme()
     manifest_setup()
     read_manifest()
     update_links()
