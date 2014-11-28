@@ -12,7 +12,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 from __future__ import absolute_import
 
-from subprocess import call, check_output, check_call, CalledProcessError, STDOUT
+from subprocess import call, check_call, CalledProcessError, STDOUT
 import os
 import string
 import filecmp
@@ -25,6 +25,33 @@ import shutil
 import argparse
 import json
 import base64
+
+# Attempt importing check_output, this fails on Python older than 2.7
+# so we need to define it ourselves
+try:
+    from subprocess import check_output
+except:
+    # Source: https://gist.github.com/edufelipe/1027906
+    import subprocess
+    def check_output(*popenargs, **kwargs):
+        """
+        Run command with arguments and return its output as a byte string.
+        Backported from Python 2.7 as it's implemented as pure python on stdlib.
+        >>> check_output(['/usr/bin/python', '--version'])
+        Python 2.6.2
+        """
+        process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
+        output, unused_err = process.communicate()
+        retcode = process.poll()
+        if retcode:
+            cmd = kwargs.get("args")
+            if cmd is None:
+                cmd = popenargs[0]
+            error = subprocess.CalledProcessError(retcode, cmd)
+            error.output = output
+            raise error
+        return output
+
 
 # Get proper urllib for Python version
 try:
@@ -57,7 +84,7 @@ else:
         return d.iteritems()
 
 # Script version
-updot_version = "2.11"
+updot_version = "2.12"
 
 # When false, unnecessary output is suppressed
 debug = False
@@ -438,7 +465,7 @@ def pull_changes():
     sprint("\nChecking for remote changes...")
 
     # Only pull if master branch exists
-    remote_branches = check_output(["git", "ls-remote", "--heads"], stderr = errstream)
+    remote_branches = check_output(["git", "ls-remote", "--heads", "origin"], stderr = errstream)
     if "master" in remote_branches.decode("UTF-8"):
         try:
             # Check if we need to pull

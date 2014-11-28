@@ -20,6 +20,20 @@ shell config:
 alias updot='python ~/.updot/updot.py'
 ```
 
+If you are attempting to use this with a version of Python less than 2.7, you
+will also need to install `argparse` manually.
+This can be done via `easy_install` or `pip`:
+```
+easy_install argparse
+pip install argparse
+```
+
+If you don't have `easy_install` or `pip`, check out these links:
+
+https://pypi.python.org/pypi/setuptools
+
+http://pip.readthedocs.org/en/latest/installing.html
+
 ##Usage
 Just run `updot.py`, and the rest should be handled for you.
 
@@ -60,5 +74,5 @@ python updot.py --silent
 ```
 
 ##Compatibility
-This script should run fine in either Python 2 (2.7.4 tested) or 
+This script should run fine in either Python 2 (2.6.6 & 2.7.4 tested) or 
 Python 3 (3.3.1 tested).
