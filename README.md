@@ -11,7 +11,7 @@ are instead backed up to `~/.dotfiles_backup`
 ##Installation
 You can grab the script with the following call:
 ```
-curl https://raw.githubusercontent.com/magrimes/updot/master/updot.py -o ~/.updot/updot --create-dirs
+curl https://raw.githubusercontent.com/ntpeters/updot/master/updot.py -o ~/.updot/updot --create-dirs
 ```
 
 Now ensure the script is executable:
