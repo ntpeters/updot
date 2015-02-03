@@ -43,9 +43,9 @@ pip install argparse
 
 If you don't have `easy_install` or `pip`, check out these links:
 
-https://pypi.python.org/pypi/setuptools
+[Installing easy_install](https://pypi.python.org/pypi/setuptools)
 
-http://pip.readthedocs.org/en/latest/installing.html
+[Installing pip](http://pip.readthedocs.org/en/latest/installing.html)
 
 ##Usage
 Just run `updot`, and the rest should be handled for you.
