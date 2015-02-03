@@ -2,11 +2,18 @@
 Updot is a dotfile update script that keeps your dotfiles in sync between
 computers via GitHub.
 
-This script moves the specified dotfiles to `~/dotfiles`, and then symlinks
-them back into their original locations.
+##Features
+* No additional libraries required*
+* Ensures an SSH key is setup with GitHub for the current computer
+* Supports 2-Factor Authentication for GitHub signin
+* Configures local and remote git repositories automatically
+* Creates remote git repository if needed
+* Specify tracked dotfiles via config file (`dotfiles.manifest`)
+* Intelligent copying/linking of tracked files from/to specified paths
+* Removed files are backed up
+* Support for Python 2 (2.6+) and Python 3
 
-Dotfiles are not deleted when they are removed from the home directory, they
-are instead backed up to `~/.dotfiles_backup`
+*Caveat: For Python 2.7+ only. See [Python 2.6 Requirements](# Python 2.6 Requirements)
 
 ##Installation
 You can grab the script with the following call:
@@ -25,7 +32,7 @@ config):
 echo 'export PATH="$PATH:$HOME/.updot/updot"' >> ~/.bashrc
 source ~/.bashrc
 ```
-
+###Python 2.6 Requirements
 If you are attempting to use this with a version of Python less than 2.7, you
 will also need to install `argparse` manually.
 This can be done via `easy_install` or `pip`:
@@ -44,12 +51,18 @@ http://pip.readthedocs.org/en/latest/installing.html
 Just run `updot`, and the rest should be handled for you.
 
 The script will ensure that your `gitconfig` settings are correct, that you
-have an ssh key set up with GitHub, and will configure the local and remote
+have an SSH key set up with GitHub, and will configure the local and remote
 repositories for you.
 
 The dotfiles you want tracked should be added to the `dotfiles.manifest` file
 located in the `~/dotfiles` directory. This will ensure that these files are
 linked properly and exist in your `~/dotfiles` directory on each computer.
+This script moves the specified dotfiles to `~/dotfiles`, and then symlinks
+them back into their original locations.
+
+Dotfiles are not deleted when they are removed from their original directory, 
+they are instead backed up to `~/.dotfiles_backup`
+
 Any additional files kept in the `~/dotfiles` directory (even if not listed in
 the manifest) will be synced with the repository automatically.
 
