@@ -583,7 +583,7 @@ def check_readme():
         readme.write("========\n")
         readme.write("My dotfiles repository.\n\n")
         readme.write("Created and maintained by the awesome 'updot.py' script!\n\n")
-        readme.write("Get the script for yourself here: https://github.com/magrimes/updot\n")
+        readme.write("Get the script for yourself here: https://github.com/ntpeters/updot\n")
         readme.close()
         call(["git", "add", dotfiles_dir + "/README.md"], stdout = outstream, stderr = errstream)
 
