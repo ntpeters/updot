@@ -13,7 +13,7 @@ computers via GitHub.
 * Removed files are backed up
 * Support for Python 2 (2.6+) and Python 3
 
-*Caveat: For Python 2.7+ only. See [Python 2.6 Requirements](# Python 2.6 Requirements)
+*Caveat: For Python 2.7+ only. See [Python 2.6 Requirements](#python-26-requirements)
 
 ##Installation
 You can grab the script with the following call:
