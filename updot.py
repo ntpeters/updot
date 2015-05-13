@@ -215,7 +215,7 @@ def check_dependencies():
     sprint("\nChecking internet connection...")
     try:
         # Try connecting to Google to see if there is an active internet connection
-        urllib2.urlopen('http://74.125.225.103/', timeout = 1)
+        urllib2.urlopen('http://www.google.com/', timeout = 5)
         sprint("Internet connection - Okay")
     except urllib2.URLError:
         sprint("No internet connection detected!")
