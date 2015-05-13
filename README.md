@@ -29,7 +29,7 @@ chmod a+x ~/.updot/updot
 Finally, add it to your path (if not using bash, swap `.bashrc` for your shell
 config):
 ```
-echo 'export PATH="$PATH:$HOME/.updot/updot"' >> ~/.bashrc
+echo 'export PATH="$PATH:$HOME/.updot"' >> ~/.bashrc
 source ~/.bashrc
 ```
 ###Python 2.6 Requirements
