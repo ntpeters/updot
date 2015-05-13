@@ -87,7 +87,10 @@ else:
 # Script version
 updot_version = "2.12"
 
-# When false, unnecessary output is suppressed
+# When false, unnecessary output is suppresed
+verbose = False
+
+# When false, debug output is suppressed
 debug = False
 
 # When true, no output is generated
@@ -96,6 +99,7 @@ silent = False
 # Custom print functions
 sprint = None
 dprint = None
+vprint = None
 
 # Open output streams
 devnull = open(os.devnull, "w")
@@ -129,11 +133,13 @@ manifest_path = dotfiles_dir + "/dotfiles.manifest"
 def set_debug():
     """Enable debug mode"""
     global debug
+    global verbose
     global outstream
     global errstream
     global silentflag
 
     debug = True
+    verbose = True
 
     # Set debug options
     if debug:
@@ -201,10 +207,10 @@ def check_dependencies():
     Checks for a git installation and an active internet connection.
     """
     # Check if git is installed
-    sprint("\nChecking for git...")
+    vprint("\nChecking for git...")
     try:
         check_call(["git", "--version"], stdout = outstream, stderr = errstream)
-        sprint("Git installation - Okay")
+        vprint("Git installation - Okay")
     except (OSError, CalledProcessError):
         sprint("Git not found!")
         sprint("Install git, then rerun this script.")
@@ -212,11 +218,11 @@ def check_dependencies():
         sys.exit()
 
     # Ensure there is an internet connection
-    sprint("\nChecking internet connection...")
+    vprint("\nChecking internet connection...")
     try:
         # Try connecting to Google to see if there is an active internet connection
         urllib2.urlopen('http://www.google.com/', timeout = 5)
-        sprint("Internet connection - Okay")
+        vprint("Internet connection - Okay")
     except urllib2.URLError:
         sprint("No internet connection detected!")
         sprint("Check your connection, then rerun this script.")
@@ -231,12 +237,12 @@ def github_setup():
     global git_email
     global github_username
 
-    sprint("\nInspecting local git configuration...")
+    vprint("\nInspecting local git configuration...")
 
     # Check for user name
     try:
         git_name = check_output(["git", "config", "user.name"])[:-1]
-        sprint("gitconfig user.name - Okay")
+        vprint("gitconfig user.name - Okay")
     except CalledProcessError:
         sprint("\nName not found in git config.")
         sprint("Please provide the name you would like associated with your commits (ie. Mike Grimes)")
@@ -247,7 +253,7 @@ def github_setup():
     # Check for email
     try:
         git_email = check_output(["git", "config", "user.email"])[:-1]
-        sprint("gitconfig user.email - Okay")
+        vprint("gitconfig user.email - Okay")
     except CalledProcessError:
         sprint("\nEmail not found in git config.")
         sprint("Please provide the email you would like associated with your commits.")
@@ -256,7 +262,7 @@ def github_setup():
         sprint("Email stored to git config.")
 
     # Try to get GitHub username from git config
-    sprint("\nAttempting to retrieve GitHub username...")
+    vprint("\nAttempting to retrieve GitHub username...")
     try:
         github_username = check_output(["git", "config", "github.user"])[:-1]
     except CalledProcessError:
@@ -276,41 +282,41 @@ def github_setup():
     except:
         pass
 
-    sprint("GitHub Username: " + github_username)
+    vprint("GitHub Username: " + github_username)
 
-    sprint("\nTrying remote access to GitHub...")
+    vprint("\nTrying remote access to GitHub...")
     try:
         check_output(["ssh", "-T", "git@github.com"], stderr = STDOUT)
     except CalledProcessError as e:
-        sprint(e.output.decode()[:-1])
+        vprint(e.output.decode()[:-1])
         if "denied" in str(e.output):
             sprint("Public key not setup with GitHub!")
             ssh_setup()
         else:
-            sprint("Connected to GitHub successfully!")
+            vprint("Connected to GitHub successfully!")
 
 def ssh_setup():
     """
     Checks for a public SSH key and creates one if none is found.
     Also attempts to add key to the ssh-agent.
     """
-    sprint("\nChecking for existing local public key...")
+    vprint("\nChecking for existing local public key...")
     pub_key = None
     try:
         pub_key = open(ssh_key_path, "r")
-        sprint("Public key found locally.")
+        vprint("Public key found locally.")
     except IOError:
         sprint("Public key not found locally. Generating new SSH keys...")
         sprint("The following prompts will guide you through creating a new key pair.")
         sprint("(Please leave directory options set to default values)\n")
         call(["ssh-keygen", "-t", "rsa", "-C", git_email])
 
-    sprint("\nAdding to SSH agent...")
+    vprint("\nAdding to SSH agent...")
     try:
         check_call(["ssh-add", "~/.ssh/id_rsa"])
-        sprint("Key added to agent successfully.")
+        vprint("Key added to agent successfully.")
     except (CalledProcessError, OSError):
-        sprint("Failed to add to agent. Is 'ssh-agent' running?")
+        vprint("Failed to add to agent. Is 'ssh-agent' running?")
 
     pub_key = open(ssh_key_path, "r")
 
@@ -325,7 +331,7 @@ def ssh_setup():
     url = "https://api.github.com/user/keys"
     post_succeeded = post_request(url, data, github_username)
     if post_succeeded:
-        sprint("Key added to GitHub successfully!")
+        vprint("Key added to GitHub successfully!")
     else:
         sprint("Failed to add key to GitHub account!")
         sprint("Please follow the directions on the following page, then rerun this script:")
@@ -336,13 +342,13 @@ def ssh_setup():
 def directory_setup():
     """Ensures that the dotfiles directory exists, and creates it otherwise."""
     # Check if dotfile directory exists, and create it if it doesn't
-    sprint("\nChecking for '~/dotfiles' directory...")
+    vprint("\nChecking for '~/dotfiles' directory...")
     if not os.path.exists(dotfiles_dir):
-        sprint("Dotfiles directory does not exist.")
-        sprint("Creating dotfiles directory...")
+        vprint("Dotfiles directory does not exist.")
+        vprint("Creating dotfiles directory...")
         os.makedirs(dotfiles_dir)
     else:
-        sprint("Dotfiles directory exists!")
+        vprint("Dotfiles directory exists!")
 
 def manifest_setup():
     """
@@ -353,10 +359,10 @@ def manifest_setup():
     global manifest
 
     # Open manifest file, or create it if it doesn't exist
-    sprint("\nChecking for 'dotfiles.manifest'...")
+    vprint("\nChecking for 'dotfiles.manifest'...")
     try:
         manifest = open(manifest_path, "r")
-        sprint("Manifest file exists!")
+        vprint("Manifest file exists!")
     except IOError:
         sprint("Manifest file not found!")
         sprint("Creating empty 'dotfiles.manifest'...")
@@ -366,10 +372,10 @@ def manifest_setup():
         manifest.write("# Add the path to each dotfile you wish to track below this line\n\n")
         manifest.close();
         try:
-            sprint("Getting default text editor...")
+            vprint("Getting default text editor...")
             editor = os.environ.get('EDITOR')
             if editor == None:
-                sprint("Default editor unknown. Defaulting to Vim for editing.")
+                vprint("Default editor unknown. Defaulting to Vim for editing.")
                 editor = "vi"
             input("Press Enter to continue editing manifest...")
             sprint("Opening manifest file in " + editor + " for editing...")
@@ -484,29 +490,29 @@ def repo_setup():
     os.chdir(dotfiles_dir)
 
     # Check if dotfiles directory is a git repo
-    sprint("\nVerifying dotfiles directory is a git repository...")
+    vprint("\nVerifying dotfiles directory is a git repository...")
 
     if os.path.exists(dotfiles_dir + "/.git"):
-        sprint("Dotfiles directory is a git repo!")
+        vprint("Dotfiles directory is a git repo!")
     else:
         # Init as a local git repo
-        sprint("Dotfiles directory does not contain a git repository.")
-        sprint("Initializing local repository...")
+        vprint("Dotfiles directory does not contain a git repository.")
+        vprint("Initializing local repository...")
         call(["git", "init"], stdout = outstream, stderr = errstream)
 
     # Check if remote already added
-    sprint("\nChecking for remote repository...")
+    vprint("\nChecking for remote repository...")
     try:
         check_call(["git", "fetch", "origin", "master"], stdout = outstream, stderr = errstream)
-        sprint("Repository has remote!")
+        vprint("Repository has remote!")
     except CalledProcessError:
-        sprint("No remote added to repository!")
-        sprint("Adding dotfiles remote...")
+        vprint("No remote added to repository!")
+        vprint("Adding dotfiles remote...")
         # Check if repo already exists
         try:
             urllib2.urlopen("http://www.github.com/" + github_username + "/dotfiles")
             call(["git", "remote", "add", "origin", "git@github.com:" + github_username + "/dotfiles.git"], stdout = outstream, stderr = errstream)
-            sprint("Remote added successfully.")
+            vprint("Remote added successfully.")
         except urllib2.HTTPError:
             sprint("Remote repository does not exist.")
             sprint("Creating GitHub repository...\n")
@@ -581,8 +587,8 @@ def check_readme():
     # Check for a readme, and create one if one doesn't exist
     if not os.path.isfile("README.md"):
         #Create Readme file
-        sprint("\nReadme not found.")
-        sprint("Creating readme file...")
+        vprint("\nReadme not found.")
+        vprint("Creating readme file...")
         readme = open("README.md", "w+")
         readme.write("dotfiles\n")
         readme.write("========\n")
@@ -598,7 +604,7 @@ def read_manifest():
     global files
     global longest_name
 
-    sprint("\nReading manifest file...")
+    vprint("\nReading manifest file...")
     for path in manifest:
         # Don't process line if it is commented out
         if path[0] != "#":
@@ -690,31 +696,37 @@ def get_status():
 
 def main():
     global silent
+    global verbose
     global sprint
     global dprint
+    global vprint
     global commit_message
 
     # Parse command line arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("-d", "--debug", help="Print debug output during execution", action="store_true")
+    parser.add_argument("-d", "--debug", help="Print debug output during execution (implies verbose)", action="store_true")
+    parser.add_argument("-v", "--verbose", help="Print additional output during execution", action="store_true")
     parser.add_argument("-s", "--silent", help="Print nothing during execution", action="store_true")
     parser.add_argument("-m", "--message", help="Add a custom message to this commit")
     parser.add_argument("--status", help="Print the current status of the dotfiles directory", action="store_true")
     args = parser.parse_args()
 
     # Set options based on args
-    if args.silent:
-        silent = True
-    elif args.debug:
+    if args.debug:
         set_debug()
+    elif args.verbose:
+        verbose = True
+    elif args.silent:
+        silent = True
 
     # Set custom commit message if one was provided
     if args.message:
         commit_message = args.message
 
     # Setup custom print functions
-    sprint = print if not silent else lambda *a, **k: None
     dprint = print if debug else lambda *a, **k: None
+    vprint = print if verbose or debug else lambda *a, **k: None
+    sprint = print if not silent else lambda *a, **k: None
 
     sprint("updot v" + updot_version + " - Dotfile update script")
     if debug:

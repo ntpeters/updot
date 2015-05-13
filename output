@@ -1,0 +1,60 @@
+git version 1.9.1
+updot v2.12 - Dotfile update script
+Debug Mode: Enabled
+
+Checking for git...
+Git installation - Okay
+
+Checking internet connection...
+Internet connection - Okay
+
+Inspecting local git configuration...
+gitconfig user.name - Okay
+gitconfig user.email - Okay
+
+Attempting to retrieve GitHub username...
+GitHub Username: ntpeters
+
+Trying remote access to GitHub...
+Hi ntpeters! You've successfully authenticated, but GitHub does not provide shell access.
+Connected to GitHub successfully!
+
+Checking for '~/dotfiles' directory...
+Dotfiles directory exists!
+
+Verifying dotfiles directory is a git repository...
+Dotfiles directory is a git repo!
+
+Checking for remote repository...
+Repository has remote!
+
+Checking for remote changes...
+
+No remote changes!
+
+Checking for 'dotfiles.manifest'...
+Manifest file exists!
+
+Reading manifest file...
+
+Checking symlinks...
+
+.zshrc          - Okay
+.zpreztorc      - Okay
+.zlogin         - Okay
+.zlogout        - Okay
+.gitignore      - Okay
+.vimrc          - Okay
+.bashrc         - Okay
+.genesis_config - Okay
+.gitconfig      - Okay
+.zprofile       - Okay
+.zshenv         - Okay
+
+No changes to push!
+
+Complete - Dotfiles updated!
+
+Test Verbose!
+
+Test Debug!
