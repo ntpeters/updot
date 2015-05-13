@@ -397,9 +397,9 @@ def backup_file(file_name, src_path):
             os.makedirs(backup_dir)
 
         # Prepend datetime to backup filename to prevent overwriting backup files
-        current_datetime = datetime.now().iosformat()
+        current_datetime = datetime.now().isoformat()
         file_name = "[" + current_datetime + "]" + file_name
-        
+
         dst_path = os.path.join(backup_dir, file_name)
         shutil.move(src_path, dst_path)
 
