@@ -91,6 +91,13 @@ The script can also be executed in silent mode by executing with either the
 updot -s
 updot --silent
 ```
+###Verbose Mode
+Verbose mode will output additional output during the execution of the script.
+The script can be run in this mode by using either the `-v` or `--verbose` flags.
+```
+updot -v
+updot --verbose
+```
 
 ##Compatibility
 This script should run fine in either Python 2 (2.6.6 & 2.7.4 tested) or
