@@ -99,6 +99,38 @@ updot -v
 updot --verbose
 ```
 
+##Automate Updates
+You can create a more streamlined experience with `updot` by having your shell
+check if your dotfiles need to be updated at startup.  This can be achieved by
+using the [dotstat.sh](https://gist.github.com/ntpeters/bb100b43340d9bf8ac48)
+script.  This script will check for local and remote dotfile changes, and prompt
+to execute `updot` if any are found.
+
+To set this up to be called at the start of a shell session, simply add the
+following to the end of your shell config file:
+```
+# Set path to synced dotfiles for status check
+export LOCAL_DOTFILES_REPOSITORY="$HOME/dotfiles"
+
+# Path to dotstat script
+dotstat="$HOME/.updot/dotstat.sh"
+
+# Ensure script is available, and get it if not
+if [ ! -f $dotstat ]; then
+    echo "Downloading dotstat.sh..."
+    curl https://gist.githubusercontent.com/ntpeters/bb100b43340d9bf8ac48/raw/dotstat.sh -o $dotstat --create-dirs --progress-bar
+    echo
+fi
+# Ensure script is executable
+if [ ! -x $dotstat ]; then
+    chmod a+x $dotstat
+fi
+# What's up with my dotfiles?
+bash $dotstat
+```
+This will also ensure that [dotstat.sh](https://gist.github.com/ntpeters/bb100b43340d9bf8ac48)
+is installed and executable prior to executing it.
+
 ##Compatibility
 This script should run fine in either Python 2 (2.6.6 & 2.7.4 tested) or
 Python 3 (3.3.1 tested).
