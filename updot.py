@@ -463,6 +463,8 @@ def update_links():
                 else:
                     #2: src:!exist dst:exist => link
                     sprint(name + indent_space + " - Linking into target directory: " + src_dir)
+                    if not os.path.exists(src_dir):
+                        os.makedirs(src_dir)
                     os.symlink(dst_path, src_path)
             else:
                 if os.path.lexists(src_path):
