@@ -251,6 +251,9 @@ def self_update():
 
     # Check if an update is available
     try:
+        # Get remote info
+        check_call(["git", "fetch"], stdout = outstream, stderr = errstream)
+        
         # Get hashes from git to determine if an update is needed
         local = check_output(["git", "rev-parse", "@"])
         remote = check_output(["git", "rev-parse", "@{u}"])
