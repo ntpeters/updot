@@ -229,6 +229,46 @@ def check_dependencies():
         sprint("Exiting...")
         sys.exit()
 
+def self_update():
+    """
+    Checks if a newer version of updot exists in its repository, and udates
+    itself if so.
+    After update is complete, the script is restarted.
+    """
+
+    # Switch to updot directory
+    updot_dir = os.path.dirname(os.path.realpath(__file__))
+    os.chdir(updot_dir)
+
+    sprint("\nChecking for new version of updot...")
+
+    # Check if local updot is a git repo
+    if not os.path.exists(os.path.join(updot_dir, ".git")):
+        sprint("Unable to check for new versions of updot!")
+        sprint("Updot must be cloned as a git repository to be kept up to date!")
+        sprint("To keep getting the latest updates, please reinstall updot by cloning its repository.")
+        return
+
+    # Check if an update is available
+    try:
+        # Get hashes from git to determine if an update is needed
+        local = check_output(["git", "rev-parse", "@"])
+        remote = check_output(["git", "rev-parse", "@{u}"])
+        base = check_output(["git", "merge-base", "@", "@{u}"])
+
+        # Check the hashes to see if we need to update
+        if local != remote and local == base:
+            sprint("New version of updot found! Updating...")
+            # Update
+            check_call(["git", "pull", "origin", "master"], stdout = outstream, stderr = errstream)
+            sprint("Update successful. Restarting updot...\n\n")
+            # Restart script
+            os.execl(sys.executable, *([sys.executable]+sys.argv))
+        else:
+            sprint("Updot is already up to date!")
+    except CalledProcessError:
+        sprint("Failed to check for new version of Updot. Try again later.")
+
 def github_setup():
     """
     Ensures that git config is setup and remote access to GitHub is successful.
@@ -741,6 +781,7 @@ def main():
 
     # Execute script
     check_dependencies()
+    self_update()
     github_setup()
     directory_setup()
     repo_setup()
