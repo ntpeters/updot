@@ -11,6 +11,7 @@ computers via GitHub.
 * Specify tracked dotfiles via config file (`dotfiles.manifest`)
 * Intelligent copying/linking of tracked files from/to specified paths
 * Removed files are backed up
+* Self update - Script keeps itself up to date
 * Support for Python 2 (2.6+) and Python 3
 
 *Caveat: For Python 2.7+ only. See [Python 2.6 Requirements](#python-26-requirements)
