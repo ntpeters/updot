@@ -19,20 +19,14 @@ computers via GitHub.
 ##Installation
 You can grab the script with the following call:
 ```
-curl https://raw.githubusercontent.com/ntpeters/updot/master/updot.py -o ~/.updot/updot --create-dirs
+git clone https://github.com/ntpeters/updot.git ~/.updot/
 ```
 
-Now ensure the script is executable:
+Now add an alias to your shell config (ie. `.bashrc`):
 ```
-chmod a+x ~/.updot/updot
+alias updot="python ~/.updot/updot.py"
 ```
 
-Finally, add it to your path (if not using bash, swap `.bashrc` for your shell
-config):
-```
-echo 'export PATH="$PATH:$HOME/.updot"' >> ~/.bashrc
-source ~/.bashrc
-```
 ###Python 2.6 Requirements
 If you are attempting to use this with a version of Python less than 2.7, you
 will also need to install `argparse` manually.
