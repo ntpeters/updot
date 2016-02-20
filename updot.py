@@ -84,8 +84,13 @@ else:
     def iteritems(d):
         return d.iteritems()
 
+# Define error for handling problems detected during dotfile status checks
+class DotfileStatusError(Exception):
+    """Raised in the event of an error while checking dotfile status to prevent continued execution."""
+    pass
+
 # Script version
-updot_version = "2.20"
+updot_version = "2.21"
 
 # When false, unnecessary output is suppresed
 verbose = False
@@ -253,7 +258,7 @@ def self_update():
     try:
         # Get remote info
         check_call(["git", "fetch"], stdout = outstream, stderr = errstream)
-        
+
         # Get hashes from git to determine if an update is needed
         local = check_output(["git", "rev-parse", "@"])
         remote = check_output(["git", "rev-parse", "@{u}"])
@@ -699,10 +704,15 @@ def parse_print_diff(diff_string):
 
 def get_status():
     """Display the status of local and remote dotfiles."""
+
+    # Track if any errors occur
+    error_detected = False
+    # Track if changes were detected
+    changes_found = False
+
+    # Ensure the dotfiles directory exist
     if os.path.exists(dotfiles_dir):
         os.chdir(dotfiles_dir)
-
-        changes_found = False
 
         # Get local status
         try:
@@ -718,6 +728,7 @@ def get_status():
             else:
                 sprint("\nNo local changes!")
         except CalledProcessError:
+            error_detected = True
             sprint("\nError: Unable to get local status")
 
         # Get remote status
@@ -732,12 +743,16 @@ def get_status():
             else:
                 sprint("\nNo remote changes!")
         except CalledProcessError:
+            error_detected = True
             sprint("\nError: Unable to get remote status")
-
-        if changes_found:
-            sprint("\nChanges Detected: You should run Updot to sync changes")
     else:
+        error_detected = True
         sprint("\nError: Dotfiles directory does not exist")
+
+    if error_detected:
+        raise DotfileStatusError
+
+    return changes_found
 
 def main():
     global silent
@@ -777,9 +792,30 @@ def main():
     if debug:
         sprint("Debug Mode: Enabled")
 
-    # Print the dotfile dir status and exit
-    if args.status:
-        get_status()
+    try:
+        # Check dotfile status
+        changes = get_status()
+
+        # Simply exit if user is only checking status
+        if args.status:
+            if changes:
+                sprint("\nChanges Detected: You should run Updot to sync changes")
+            exit()
+
+        # Exit if no changes were found
+        if not changes:
+            sprint("No changes detected. Nothing to sync.")
+            exit()
+
+        # Prompt the user to continue if not running in silent mode
+        if not silent:
+            choice = input("\nContinue syncing detected changes? [y/n] ").lower()
+            if choice == "y":
+                pass
+            else:
+                exit()
+    except DotfileStatusError:
+        # Do not continue if any errors occurred during status check
         exit()
 
     # Execute script
