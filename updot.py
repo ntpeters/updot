@@ -211,6 +211,7 @@ def check_dependencies():
     Verify script dependencies prior to execution.
     Checks for a git installation and an active internet connection.
     """
+
     # Check if git is installed
     vprint("\nChecking for git...")
     try:
@@ -285,6 +286,8 @@ def github_setup():
     global git_email
     global github_username
 
+    setup_okay = True
+
     vprint("\nInspecting local git configuration...")
 
     # Check for user name
@@ -292,6 +295,7 @@ def github_setup():
         git_name = check_output(["git", "config", "user.name"])[:-1]
         vprint("gitconfig user.name - Okay")
     except CalledProcessError:
+        setup_okay = False
         sprint("\nName not found in git config.")
         sprint("Please provide the name you would like associated with your commits (ie. Mike Grimes)")
         git_name = input('Enter Name: ')
@@ -303,6 +307,7 @@ def github_setup():
         git_email = check_output(["git", "config", "user.email"])[:-1]
         vprint("gitconfig user.email - Okay")
     except CalledProcessError:
+        setup_okay = False
         sprint("\nEmail not found in git config.")
         sprint("Please provide the email you would like associated with your commits.")
         git_email = input('Enter Email: ')
@@ -314,11 +319,13 @@ def github_setup():
     try:
         github_username = check_output(["git", "config", "github.user"])[:-1]
     except CalledProcessError:
+        setup_okay = False
         sprint("GitHub user entry does not exist in git config, creating now...")
         call(["git", "config", "--global", "github.user", ""], stdout = outstream, stderr = errstream)
 
     # Check if GitHub username has been set
     if len(github_username) == 0:
+        setup_okay = False
         sprint("No GitHub username found. Please provide one now.")
         github_username = input('Enter GitHub username: ')
         sprint("Storing username in git config.")
@@ -338,10 +345,13 @@ def github_setup():
     except CalledProcessError as e:
         vprint(e.output.decode()[:-1])
         if "denied" in str(e.output):
+            setup_okay = False
             sprint("Public key not setup with GitHub!")
             ssh_setup()
         else:
             vprint("Connected to GitHub successfully!")
+
+    return setup_okay
 
 def ssh_setup():
     """
@@ -769,6 +779,8 @@ def main():
     parser.add_argument("-s", "--silent", help="Print nothing during execution", action="store_true")
     parser.add_argument("-m", "--message", help="Add a custom message to this commit")
     parser.add_argument("--status", help="Print the current status of the dotfiles directory", action="store_true")
+    parser.add_argument("--selfupdate", help="Check if an update to Updot is available", action="store_true")
+    parser.add_argument("--doctor", help="Ensure all dependencies are met, and git and SSH are properly configured", action="store_true")
     args = parser.parse_args()
 
     # Set options based on args
@@ -791,6 +803,18 @@ def main():
     sprint("updot v" + updot_version + " - Dotfile update script")
     if debug:
         sprint("Debug Mode: Enabled")
+
+    if args.selfupdate:
+        check_dependencies()
+        self_update()
+        exit()
+
+    if args.doctor:
+        check_dependencies()
+        setup_check = github_setup()
+        if setup_check:
+            sprint("\nNo problems detected. All systems go!")
+        exit()
 
     try:
         # Check dotfile status
