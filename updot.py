@@ -756,8 +756,8 @@ def get_status():
             error_detected = True
             sprint("\nError: Unable to get remote status")
     else:
-        error_detected = True
-        sprint("\nError: Dotfiles directory does not exist")
+        sprint("\nWarning: Dotfiles directory does not exist. Skipping status check.")
+        changes_found = True
 
     if error_detected:
         raise DotfileStatusError
