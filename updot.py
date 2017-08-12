@@ -266,7 +266,9 @@ def self_update():
         base = check_output(["git", "merge-base", "@", "@{u}"])
 
         # Check the hashes to see if we need to update
-        if local != remote and local == base:
+        if local != base:
+            sprint("Update failed! Local changes detected to updot!")
+        elif local != remote:
             sprint("New version of updot found! Updating...")
             # Update
             check_call(["git", "pull", "origin", "master"], stdout = outstream, stderr = errstream)
