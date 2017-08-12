@@ -1,8 +1,8 @@
-#updot
+# updot
 Updot is a dotfile update script that keeps your dotfiles in sync between
 computers via GitHub.
 
-##Features
+## Features
 * No additional libraries required*
 * Ensures an SSH key is setup with GitHub for the current computer
 * Supports 2-Factor Authentication for GitHub signin
@@ -16,7 +16,7 @@ computers via GitHub.
 
 *Caveat: For Python 2.7+ only. See [Python 2.6 Requirements](#python-26-requirements)
 
-##Installation
+## Installation
 You can grab the script with the following call:
 ```
 git clone https://github.com/ntpeters/updot.git ~/.updot/
