@@ -90,7 +90,7 @@ class DotfileStatusError(Exception):
     pass
 
 # Script version
-updot_version = "2.22"
+updot_version = "2.23"
 
 # When false, unnecessary output is suppresed
 verbose = False
@@ -130,7 +130,7 @@ longest_name    = 0
 # Setup directory variables
 updot_dir     = os.path.dirname(os.path.abspath( __file__ ))
 user_home_dir = os.path.expanduser( "~" )
-dotfiles_dir  = user_home_dir + "/dotfiles"
+dotfiles_dir  = user_home_dir + "/.dotfiles"
 backup_dir    = user_home_dir + "/.dotfiles_backup"
 ssh_key_path  = user_home_dir + "/.ssh/id_rsa.pub"
 manifest_path = dotfiles_dir + "/dotfiles.manifest"
@@ -402,7 +402,7 @@ def ssh_setup():
 def directory_setup():
     """Ensures that the dotfiles directory exists, and creates it otherwise."""
     # Check if dotfile directory exists, and create it if it doesn't
-    vprint("\nChecking for '~/dotfiles' directory...")
+    vprint("\nChecking for '~/.dotfiles' directory...")
     if not os.path.exists(dotfiles_dir):
         vprint("Dotfiles directory does not exist.")
         vprint("Creating dotfiles directory...")

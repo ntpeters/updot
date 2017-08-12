@@ -50,16 +50,16 @@ have an SSH key set up with GitHub, and will configure the local and remote
 repositories for you.
 
 The dotfiles you want tracked should be added to the `dotfiles.manifest` file
-located in the `~/dotfiles` directory. This will ensure that these files are
-linked properly and exist in your `~/dotfiles` directory on each computer.
-This script moves the specified dotfiles to `~/dotfiles`, and then symlinks
+located in the `~/.dotfiles` directory. This will ensure that these files are
+linked properly and exist in your `~/.dotfiles` directory on each computer.
+This script moves the specified dotfiles to `~/.dotfiles`, and then symlinks
 them back into their original locations.
 The paths specified in the manifest should be relative to your home directory.
 
 Dotfiles are not deleted when they are removed from their original directory,
 they are instead backed up to `~/.dotfiles_backup`
 
-Any additional files kept in the `~/dotfiles` directory (even if not listed in
+Any additional files kept in the `~/.dotfiles` directory (even if not listed in
 the manifest) will be synced with the repository automatically.
 
 ### Custom Commit Messages
@@ -106,7 +106,7 @@ To set this up to be called at the start of a shell session, simply add the
 following to the end of your shell config file:
 ```
 # Set path to synced dotfiles for status check
-export LOCAL_DOTFILES_REPOSITORY="$HOME/dotfiles"
+export LOCAL_DOTFILES_REPOSITORY="$HOME/.dotfiles"
 
 # Path to dotstat script
 dotstat="$HOME/.updot/dotstat.sh"
