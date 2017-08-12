@@ -90,7 +90,7 @@ class DotfileStatusError(Exception):
     pass
 
 # Script version
-updot_version = "2.21"
+updot_version = "2.22"
 
 # When false, unnecessary output is suppresed
 verbose = False
@@ -427,7 +427,7 @@ def manifest_setup():
         manifest = open(manifest_path, "w+")
         manifest.write("# updot.py Dotfile Manifest\n")
         manifest.write("# This file is used to define which dotfiles you want tracked with updot.py\n")
-        manifest.write("# Add the path to each dotfile you wish to track below this line\n\n")
+        manifest.write("# Add the path to each dotfile (relative to your home directory) you wish to track below this line\n\n")
         manifest.close();
         try:
             vprint("Getting default text editor...")
@@ -488,15 +488,21 @@ def update_links():
     sprint("\nChecking symlinks...\n")
     for name, path in iteritems(files):
         if len(name) > 0 and len(path) > 0:
-            path = path.strip("\n")
-            src_path = os.path.expanduser(path)
-            src_dir = src_path[:len(name) * -1]
-            dst_name = name
-            if name[0] == ".":
-                dst_name = name[1:]
-            dst_path = os.path.join(dotfiles_dir, dst_name)
-
             indent_space = " " * (longest_name - len(name))
+
+            path = path.strip("\n")
+            src_dir = path[:len(name) * -1]
+            src_path = os.path.join(user_home_dir, path)
+
+            dst_dir = src_dir
+            if len(dst_dir) > 0 and dst_dir[0] == ".":
+                dst_dir = dst_dir[1:]
+
+            dst_name = name
+            if dst_name[0] == ".":
+                dst_name = dst_name[1:]
+
+            dst_path = os.path.join(dotfiles_dir, dst_dir, dst_name)
 
             # Handle Possible Conditions:
             # src = target dir (from manifest); dst = dotfile dir

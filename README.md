@@ -54,6 +54,7 @@ located in the `~/dotfiles` directory. This will ensure that these files are
 linked properly and exist in your `~/dotfiles` directory on each computer.
 This script moves the specified dotfiles to `~/dotfiles`, and then symlinks
 them back into their original locations.
+The paths specified in the manifest should be relative to your home directory.
 
 Dotfiles are not deleted when they are removed from their original directory,
 they are instead backed up to `~/.dotfiles_backup`
