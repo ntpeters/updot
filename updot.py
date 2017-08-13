@@ -90,7 +90,7 @@ class DotfileStatusError(Exception):
     pass
 
 # Script version
-updot_version = "2.23"
+updot_version = "2.24"
 
 # When false, unnecessary output is suppresed
 verbose = False
@@ -497,6 +497,7 @@ def update_links():
             src_path = os.path.join(user_home_dir, path)
 
             dst_dir = src_dir
+            src_dir = os.path.join(user_home_dir, src_dir)
             if len(dst_dir) > 0 and dst_dir[0] == ".":
                 dst_dir = dst_dir[1:]
 
