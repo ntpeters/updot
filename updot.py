@@ -91,7 +91,7 @@ class DotfileStatusError(Exception):
     pass
 
 # Script version
-updot_version = "2.25"
+updot_version = "2.26"
 
 # When false, unnecessary output is suppresed
 verbose = False
@@ -125,7 +125,7 @@ commit_message  = "updot.py update"
 manifest        = None
 timestamps      = None
 file_timestamps = {}
-files           = {}
+files           = []
 longest_name    = 0
 
 # Setup directory variables
@@ -488,8 +488,13 @@ def update_links():
     6. The file does not exist in the dotfile directory, and a link exists in
     the target directory: The dead link is removed.
     """
+    global longest_name
+
     sprint("\nChecking symlinks...\n")
-    for name, path in iteritems(files):
+    for path in files:
+        name = path.split("/")[-1][:-1]
+        longest_name = len(name) if (len(name) > longest_name) else longest_name
+
         if len(name) > 0 and len(path) > 0:
             indent_space = " " * (longest_name - len(name))
 
@@ -676,15 +681,12 @@ def check_readme():
 def read_manifest():
     """Read in the file paths to track from the manifest file."""
     global files
-    global longest_name
 
     vprint("\nReading manifest file...")
     for path in manifest:
         # Don't process line if it is commented out
         if path[0] != "#":
-            filename = path.split("/")[-1][:-1]
-            files[str(filename)] = path
-            longest_name = len(filename) if (len(filename) > longest_name) else longest_name
+            files.append(path)
 
 def parse_print_diff(diff_string):
     """
