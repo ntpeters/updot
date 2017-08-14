@@ -17,6 +17,7 @@ from __future__ import absolute_import
 from subprocess import call, check_call, CalledProcessError, STDOUT
 from datetime import datetime
 import os
+import errno
 import string
 import filecmp
 import sys
@@ -90,7 +91,7 @@ class DotfileStatusError(Exception):
     pass
 
 # Script version
-updot_version = "2.24"
+updot_version = "2.25"
 
 # When false, unnecessary output is suppresed
 verbose = False
@@ -542,6 +543,10 @@ def update_links():
                     else:
                         #3: src:exist dst:!exist => move and link
                         sprint(name + indent_space + " - Moving to dotfiles directory...")
+                        try:
+                            os.makedirs(os.path.dirname(dst_path))
+                        except OSError as exc:
+                            if exc.errno != errno.EEXIST: raise
                         shutil.move(src_path, dst_path)
                         sprint(" " * len(name) + indent_space + " - Linking into target directory: " + src_dir)
                         os.symlink(dst_path, src_path)
