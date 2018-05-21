@@ -1,28 +1,22 @@
 #!/usr/bin/env python
+"""
+Updot - Dotfile Updater
 
-# Updot - Dotfile Updater
-#
-# Authors:  Mike Grimes   <magrimes@mtu.edu>
-#           Nate Peterson <ntpeters@mtu.edu>
-#
-# A script made to automatically grab all of the dotfiles a user desires to
-# keep track of, and keep them synced with their GitHub repository.
-# Files to be updated should be included in a 'dotfiles.manifest' file in the
-# 'dotfiles' directory that this script will create in your home directory.
+A script made to automatically grab all of the dotfiles a user desires to
+keep track of, and keep them synced with their GitHub repository.
+Files to be updated should be included in a 'dotfiles.manifest' file in the
+'dotfiles' directory that this script will create in your home directory.
+"""
 
 from __future__ import print_function
 from __future__ import unicode_literals
 from __future__ import absolute_import
 
-from subprocess import call, check_call, CalledProcessError, STDOUT
 from datetime import datetime
 import os
 import errno
-import string
-import filecmp
 import sys
 import time
-import math
 import socket
 import getpass
 import shutil
@@ -30,11 +24,12 @@ import argparse
 import json
 import base64
 
-# Attempt importing check_output, this fails on Python older than 2.7
-# so we need to define it ourselves
+from subprocess import call, check_call, CalledProcessError, STDOUT
 try:
+    # Attempt importing check_output, this fails on Python older than 2.7
+    # so we need to define it ourselves
     from subprocess import check_output
-except:
+except ImportError:
     # Source: https://gist.github.com/edufelipe/1027906
     import subprocess
     def check_output(*popenargs, **kwargs):
@@ -54,12 +49,11 @@ except:
             raise error
         return output
 
-
 # Get proper urllib for Python version
 try:
     # Python 3
     import urllib.request as urllib2
-except:
+except ImportError:
     # Python 2
     import urllib2
 
@@ -74,84 +68,101 @@ try:
     dict.iteritems
 except AttributeError:
     # Python 3
-    def itervalues(d):
-        return iter(d.values())
-    def iteritems(d):
-        return iter(d.items())
+    def itervalues(dictionary):
+        """Python 3 alias for dictionary values iterator."""
+        return iter(dictionary.values())
+    def iteritems(dictionary):
+        """Python 3 alias for dictionary items iterator."""
+        return iter(dictionary.items())
 else:
     # Python 2
-    def itervalues(d):
-        return d.itervalues()
-    def iteritems(d):
-        return d.iteritems()
+    def itervalues(dictionary):
+        """Python 2 alias for dictionary values iterator."""
+        return dictionary.itervalues()
+    def iteritems(dictionary):
+        """Python 2 alias for dictionary items iterator."""
+        return dictionary.iteritems()
+
+try:
+    base64.encodebytes
+except AttributeError:
+    # Python 2
+    def b64encode(*args, **kwargs):
+        """Python 2 alias for bas64 string encoding."""
+        return base64.encodestring(*args, **kwargs)
+else:
+    # Python 3
+    def b64encode(*args, **kwargs):
+        """Python 3 alias for bas64 string encoding."""
+        return base64.encodebytes(*args, **kwargs)
 
 # Define error for handling problems detected during dotfile status checks
 class DotfileStatusError(Exception):
-    """Raised in the event of an error while checking dotfile status to prevent continued execution."""
+    """
+    Raised in the event of an error while checking dotfile status to prevent continued execution.
+    """
     pass
 
 # Script version
-updot_version = "2.26"
+UPDOT_VERSION = "2.27"
 
 # When false, unnecessary output is suppresed
-verbose = False
+VERBOSE = False
 
 # When false, debug output is suppressed
-debug = False
+DEBUG = False
 
 # When true, no output is generated
-silent = False
-
-# Custom print functions
-sprint = None
-dprint = None
-vprint = None
+SILENT = False
 
 # Open output streams
 devnull = open(os.devnull, "w")
-
-# Setup silent flag for curl
-silentflag = "-s"
 
 # Set active output streams
 outstream = devnull
 errstream = devnull
 
-# Script vars
-github_username = ""
-git_name        = ""
-git_email       = ""
-commit_message  = "updot.py update"
-manifest        = None
-timestamps      = None
-file_timestamps = {}
-files           = []
-longest_name    = 0
+# Default message used if none is provided
+DEFAULT_COMMIT_MESSAGE = "updot.py update"
 
 # Setup directory variables
-updot_dir     = os.path.dirname(os.path.abspath( __file__ ))
-user_home_dir = os.path.expanduser( "~" )
-dotfiles_dir  = user_home_dir + "/.dotfiles"
-backup_dir    = user_home_dir + "/.dotfiles_backup"
-ssh_key_path  = user_home_dir + "/.ssh/id_rsa.pub"
-manifest_path = dotfiles_dir + "/dotfiles.manifest"
+UPDOT_DIR = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
+USER_HOME_DIR = os.path.expanduser("~")
+DOTFILES_DIR = USER_HOME_DIR + "/.dotfiles"
+BACKUP_DIR = USER_HOME_DIR + "/.dotfiles_backup"
+SSH_KEY_PATH = USER_HOME_DIR + "/.ssh/id_rsa.pub"
+MANIFEST_PATH = DOTFILES_DIR + "/dotfiles.manifest"
+
+# Custom print functions
+def dprint(*args, **kwargs):
+    """Print function alias to only print when debug flag is set."""
+    if DEBUG:
+        print(*args, **kwargs)
+
+def vprint(*args, **kwargs):
+    """Print function alias to only print when verbose or debug flag is set."""
+    if VERBOSE or DEBUG:
+        print(*args, **kwargs)
+
+def sprint(*args, **kwargs):
+    """Print function alias to only print when silent flag is not set."""
+    if not SILENT:
+        print(*args, **kwargs)
 
 def set_debug():
     """Enable debug mode"""
-    global debug
-    global verbose
+    global DEBUG
+    global VERBOSE
     global outstream
     global errstream
-    global silentflag
 
-    debug = True
-    verbose = True
+    DEBUG = True
+    VERBOSE = True
 
     # Set debug options
-    if debug:
+    if DEBUG:
         outstream = sys.stdout
         errstream = sys.stderr
-        silentflag = ""
 
 def basic_auth(username, password):
     """
@@ -161,7 +172,8 @@ def basic_auth(username, password):
     username -- the username to encode
     password -- the password to encode
     """
-    return 'Basic %s' % base64.encodestring(('%s:%s' %  (username, password)).encode('UTF-8')).strip().decode('UTF-8')
+    raw_user_pass = ('%s:%s' %  (username, password)).encode('UTF-8')
+    return 'Basic %s' % b64encode(raw_user_pass).strip().decode('UTF-8')
 
 def post_request(url, data, username):
     """
@@ -174,7 +186,7 @@ def post_request(url, data, username):
     data -- the payload to post to the url
     username -- the username to authenticate with the remote host
     """
-    headers = { 'Content-Type' : 'application/json' }
+    headers = {'Content-Type' : 'application/json'}
     request = urllib2.Request(url, data, headers)
 
     retries = 0
@@ -182,6 +194,7 @@ def post_request(url, data, username):
     while retries < max_attempts:
         try:
             response = urllib2.urlopen(request)
+            dprint("Response:" + response)
             success = True
         except urllib2.HTTPError as error:
             if error.code == 401:
@@ -216,7 +229,7 @@ def check_dependencies():
     # Check if git is installed
     vprint("\nChecking for git...")
     try:
-        check_call(["git", "--version"], stdout = outstream, stderr = errstream)
+        check_call(["git", "--version"], stdout=outstream, stderr=errstream)
         vprint("Git installation - Okay")
     except (OSError, CalledProcessError):
         sprint("Git not found!")
@@ -228,7 +241,7 @@ def check_dependencies():
     vprint("\nChecking internet connection...")
     try:
         # Try connecting to Google to see if there is an active internet connection
-        urllib2.urlopen('http://www.google.com/', timeout = 5)
+        urllib2.urlopen('http://www.google.com/', timeout=5)
         vprint("Internet connection - Okay")
     except urllib2.URLError:
         sprint("No internet connection detected!")
@@ -243,23 +256,20 @@ def self_update():
     After update is complete, the script is restarted.
     """
 
-    # Switch to updot directory
-    updot_dir = os.path.dirname(os.path.realpath(__file__))
-    os.chdir(updot_dir)
-
     sprint("\nChecking for new version of updot...")
 
     # Check if local updot is a git repo
-    if not os.path.exists(os.path.join(updot_dir, ".git")):
+    os.chdir(UPDOT_DIR)
+    if not os.path.exists(os.path.join(UPDOT_DIR, ".git")):
         sprint("Unable to check for new versions of updot!")
         sprint("Updot must be cloned as a git repository to be kept up to date!")
-        sprint("To keep getting the latest updates, please reinstall updot by cloning its repository.")
+        sprint("To get the latest updates, please reinstall updot by cloning its repository.")
         return
 
     # Check if an update is available
     try:
         # Get remote info
-        check_call(["git", "fetch"], stdout = outstream, stderr = errstream)
+        check_call(["git", "fetch"], stdout=outstream, stderr=errstream)
 
         # Get hashes from git to determine if an update is needed
         local = check_output(["git", "rev-parse", "@"])
@@ -272,7 +282,7 @@ def self_update():
         elif local != remote:
             sprint("New version of updot found! Updating...")
             # Update
-            check_call(["git", "pull", "origin", "master"], stdout = outstream, stderr = errstream)
+            check_call(["git", "pull", "origin", "master"], stdout=outstream, stderr=errstream)
             sprint("Update successful. Restarting updot...\n\n")
             # Restart script
             os.execl(sys.executable, *([sys.executable]+sys.argv))
@@ -281,21 +291,45 @@ def self_update():
     except CalledProcessError:
         sprint("Failed to check for new version of Updot. Try again later.")
 
+def get_github_username():
+    """
+    Gets the GitHub username set in the global git config.
+    If the 'github.user' entry does not exist, it is created.
+    """
+    # Try to get GitHub username from git config
+    vprint("\nAttempting to retrieve GitHub username...")
+    github_username = ""
+    try:
+        github_username = check_output(["git", "config", "github.user"])[:-1]
+    except CalledProcessError:
+        sprint("GitHub user entry does not exist in git config, creating now...")
+        call(["git", "config", "--global", "github.user", ""], stdout=outstream, stderr=errstream)
+
+    # Decode the username string if needed
+    github_username = github_username.decode(encoding="utf-8", errors="ignore")
+    return github_username
+
+def get_git_email():
+    """Gets the email set in the global git config."""
+    git_email = ""
+    try:
+        git_email = check_output(["git", "config", "user.email"])[:-1]
+    except CalledProcessError:
+        pass
+
+    return git_email
+
 def github_setup():
     """
     Ensures that git config is setup and remote access to GitHub is successful.
     """
-    global git_name
-    global git_email
-    global github_username
-
     setup_okay = True
 
     vprint("\nInspecting local git configuration...")
 
     # Check for user name
     try:
-        git_name = check_output(["git", "config", "user.name"])[:-1]
+        check_call(["git", "config", "user.name"])
         vprint("gitconfig user.name - Okay")
     except CalledProcessError:
         setup_okay = False
@@ -306,10 +340,10 @@ def github_setup():
         sprint("Name stored in git config. Welcome to git, " + git_name + "!")
 
     # Check for email
-    try:
-        git_email = check_output(["git", "config", "user.email"])[:-1]
+    git_email = get_git_email()
+    if git_email:
         vprint("gitconfig user.email - Okay")
-    except CalledProcessError:
+    else:
         setup_okay = False
         sprint("\nEmail not found in git config.")
         sprint("Please provide the email you would like associated with your commits.")
@@ -317,37 +351,23 @@ def github_setup():
         call(["git", "config", "--global", "user.email", git_email])
         sprint("Email stored to git config.")
 
-    # Try to get GitHub username from git config
-    vprint("\nAttempting to retrieve GitHub username...")
-    try:
-        github_username = check_output(["git", "config", "github.user"])[:-1]
-    except CalledProcessError:
-        setup_okay = False
-        sprint("GitHub user entry does not exist in git config, creating now...")
-        call(["git", "config", "--global", "github.user", ""], stdout = outstream, stderr = errstream)
-
     # Check if GitHub username has been set
-    if len(github_username) == 0:
+    github_username = get_github_username()
+    if not github_username:
         setup_okay = False
         sprint("No GitHub username found. Please provide one now.")
         github_username = input('Enter GitHub username: ')
         sprint("Storing username in git config.")
-        call(["git", "config", "--global", "github.user", github_username], stdout = outstream, stderr = errstream)
-
-    # Decode the username string if needed
-    try:
-        github_username = github_username.decode()
-    except:
-        pass
+        call(["git", "config", "--global", "github.user", github_username], stdout=outstream, stderr=errstream)
 
     vprint("GitHub Username: " + github_username)
 
     vprint("\nTrying remote access to GitHub...")
     try:
-        check_output(["ssh", "-T", "git@github.com"], stderr = STDOUT)
-    except CalledProcessError as e:
-        vprint(e.output.decode()[:-1])
-        if "denied" in str(e.output):
+        check_output(["ssh", "-T", "git@github.com"], stderr=STDOUT)
+    except CalledProcessError as error:
+        vprint(error.output.decode()[:-1])
+        if "denied" in str(error.output):
             setup_okay = False
             sprint("Public key not setup with GitHub!")
             ssh_setup()
@@ -364,10 +384,15 @@ def ssh_setup():
     vprint("\nChecking for existing local public key...")
     pub_key = None
     try:
-        pub_key = open(ssh_key_path, "r")
+        pub_key = open(SSH_KEY_PATH, "r")
         vprint("Public key found locally.")
     except IOError:
         sprint("Public key not found locally. Generating new SSH keys...")
+        git_email = get_git_email()
+        if not git_email:
+            sprint("No email defined in global git config. Unable to generate SSH key.")
+            sprint("Add email to git config and rerun this script.")
+
         sprint("The following prompts will guide you through creating a new key pair.")
         sprint("(Please leave directory options set to default values)\n")
         call(["ssh-keygen", "-t", "rsa", "-C", git_email])
@@ -379,17 +404,15 @@ def ssh_setup():
     except (CalledProcessError, OSError):
         vprint("Failed to add to agent. Is 'ssh-agent' running?")
 
-    pub_key = open(ssh_key_path, "r")
+    pub_key = open(SSH_KEY_PATH, "r")
 
     sprint("\nAdding key to GitHub...")
     hostname = socket.gethostname()
     username = getpass.getuser()
-    response = ""
-    data_dict = { 'title' : username + "@" + hostname,
-            'key'   : pub_key.read().strip()
-            }
+    data_dict = {'title': username + "@" + hostname, 'key': pub_key.read().strip}
     data = json.dumps(data_dict).encode("UTF-8")
     url = "https://api.github.com/user/keys"
+    github_username = get_github_username()
     post_succeeded = post_request(url, data, github_username)
     if post_succeeded:
         vprint("Key added to GitHub successfully!")
@@ -404,10 +427,10 @@ def directory_setup():
     """Ensures that the dotfiles directory exists, and creates it otherwise."""
     # Check if dotfile directory exists, and create it if it doesn't
     vprint("\nChecking for '~/.dotfiles' directory...")
-    if not os.path.exists(dotfiles_dir):
+    if not os.path.exists(DOTFILES_DIR):
         vprint("Dotfiles directory does not exist.")
         vprint("Creating dotfiles directory...")
-        os.makedirs(dotfiles_dir)
+        os.makedirs(DOTFILES_DIR)
     else:
         vprint("Dotfiles directory exists!")
 
@@ -417,33 +440,33 @@ def manifest_setup():
     If none is found one is created, and it is opened for editing by the user.
     Attempts to use system default editor, otherwise defaults to vi.
     """
-    global manifest
 
     # Open manifest file, or create it if it doesn't exist
     vprint("\nChecking for 'dotfiles.manifest'...")
     try:
-        manifest = open(manifest_path, "r")
+        manifest = open(MANIFEST_PATH, "r")
         vprint("Manifest file exists!")
     except IOError:
         sprint("Manifest file not found!")
         sprint("Creating empty 'dotfiles.manifest'...")
-        manifest = open(manifest_path, "w+")
+        manifest = open(MANIFEST_PATH, "w+")
         manifest.write("# updot.py Dotfile Manifest\n")
-        manifest.write("# This file is used to define which dotfiles you want tracked with updot.py\n")
-        manifest.write("# Add the path to each dotfile (relative to your home directory) you wish to track below this line\n\n")
-        manifest.close();
+        manifest.write("# This file is used to define which dotfiles you want\n")
+        manifest.write("# tracked with updot.py\n")
+        manifest.write("# Add the path to each dotfile (relative to your home\n")
+        manifest.write("# directory) you wish to track below this line\n\n")
+        manifest.close()
         try:
             vprint("Getting default text editor...")
             editor = os.environ.get('EDITOR')
-            if editor == None:
+            if editor is None:
                 vprint("Default editor unknown. Defaulting to Vim for editing.")
                 editor = "vi"
             input("Press Enter to continue editing manifest...")
             sprint("Opening manifest file in " + editor + " for editing...")
             time.sleep(1)
-            check_call([editor, manifest_path])
+            check_call([editor, MANIFEST_PATH])
             sprint("File contents updated by user.  Attempting to continue...")
-            manifest = open(manifest_path, "r")
         except OSError:
             sprint("\n" + editor + " not found. Unable to open manifest for user editing.")
             sprint("Add to the manifest file the path of each dotfile you wish to track.")
@@ -460,19 +483,44 @@ def backup_file(file_name, src_path):
     src_path -- path to the file to be backed up
     """
     if os.path.exists(src_path):
-        if not os.path.exists(backup_dir):
-            os.makedirs(backup_dir)
+        if not os.path.exists(BACKUP_DIR):
+            os.makedirs(BACKUP_DIR)
 
         # Prepend datetime to backup filename to prevent overwriting backup files
         current_datetime = datetime.now().isoformat()
         file_name = "[" + current_datetime + "]" + file_name
 
-        dst_path = os.path.join(backup_dir, file_name)
+        dst_path = os.path.join(BACKUP_DIR, file_name)
         shutil.move(src_path, dst_path)
 
-def update_links():
+def update_links(files):
     """
     Updates all symlinks to files in the manifest, ensuring they are all valid.
+
+    Keyword Args:
+    files -- paths to files to verify and/or update symlinks for
+    """
+    longest_name = 0
+
+    sprint("\nChecking symlinks...\n")
+    for path in files:
+        name = path.split("/")[-1][:-1]
+        longest_name = len(name) if (len(name) > longest_name) else longest_name
+
+        if name and path:
+            path = path.strip("\n")
+            src_dir = path[:len(name) * -1]
+
+            dst_dir = src_dir
+            src_dir = os.path.join(USER_HOME_DIR, src_dir)
+            if dst_dir and dst_dir[0] == ".":
+                dst_dir = dst_dir[1:]
+
+            update_link(src_dir, dst_dir, name, longest_name)
+
+def update_link(src_dir, dst_dir, name, output_indent=0):
+    """
+    Updates the symlink between the provided source and destination paths.
 
     Cases Handled:
     1. A file exists in both the dotfile and target directories: It is removed
@@ -487,77 +535,71 @@ def update_links():
     directory: Nothing is done.
     6. The file does not exist in the dotfile directory, and a link exists in
     the target directory: The dead link is removed.
+
+    Keyword Args:
+    src_dir -- source directory to link from
+    dst_dir -- destination directory to link to
+    name -- name of the file to link
+    output_indent -- optional amount of spacing to indent output from this function
     """
-    global longest_name
 
-    sprint("\nChecking symlinks...\n")
-    for path in files:
-        name = path.split("/")[-1][:-1]
-        longest_name = len(name) if (len(name) > longest_name) else longest_name
+    # Handle Possible Conditions:
+    # src = target dir (from manifest); dst = dotfile dir
+    # 1: src:exist  && dst:exist  => backup and link
+    # 2: src:!exist && dst:exist  => link
+    # 3: src:exists && dst:!exist => move and link
+    # 4: src:!exist && dst:!exist => warning
+    # 5: src:link   && dst:exist  => okay
+    # 6: src:link   && dst:!exist => delete link
 
-        if len(name) > 0 and len(path) > 0:
-            indent_space = " " * (longest_name - len(name))
+    indent_space = " " * (output_indent - len(name))
+    indent_name = name + indent_space
+    indent_name_space = " " * len(name) + indent_space
 
-            path = path.strip("\n")
-            src_dir = path[:len(name) * -1]
-            src_path = os.path.join(user_home_dir, path)
+    dst_name = name
+    if dst_name[0] == ".":
+        dst_name = dst_name[1:]
 
-            dst_dir = src_dir
-            src_dir = os.path.join(user_home_dir, src_dir)
-            if len(dst_dir) > 0 and dst_dir[0] == ".":
-                dst_dir = dst_dir[1:]
+    src_path = os.path.join(src_dir, name)
+    dst_path = os.path.join(DOTFILES_DIR, dst_dir, dst_name)
 
-            dst_name = name
-            if dst_name[0] == ".":
-                dst_name = dst_name[1:]
-
-            dst_path = os.path.join(dotfiles_dir, dst_dir, dst_name)
-
-            # Handle Possible Conditions:
-            # src = target dir (from manifest); dst = dotfile dir
-            # 1: src:exist  && dst:exist  => backup and link
-            # 2: src:!exist && dst:exist  => link
-            # 3: src:exists && dst:!exist => move and link
-            # 4: src:!exist && dst:!exist => warning
-            # 5: src:link   && dst:exist  => okay
-            # 6: src:link   && dst:!exist => delete link
-
-            if os.path.exists(dst_path):
-                if os.path.lexists(src_path):
-                    if not os.path.islink(src_path):
-                        #1: src:exist dst:exist => backup and link
-                        sprint(name + indent_space + " - Removing from target directory: " + src_dir)
-                        backup_file(name, src_path)
-                        sprint(" " * len(name) + indent_space + " - Linking into target directory: " + src_dir)
-                        os.symlink(dst_path, src_path)
-                    else:
-                        #5: src:link dst:exit => okay
-                        sprint(name + indent_space + " - Okay")
-                else:
-                    #2: src:!exist dst:exist => link
-                    sprint(name + indent_space + " - Linking into target directory: " + src_dir)
-                    if not os.path.exists(src_dir):
-                        os.makedirs(src_dir)
-                    os.symlink(dst_path, src_path)
+    if os.path.exists(dst_path):
+        if os.path.lexists(src_path):
+            if not os.path.islink(src_path):
+                #1: src:exist dst:exist => backup and link
+                sprint(indent_name + " - Removing from target directory: " + src_dir)
+                backup_file(name, src_path)
+                sprint(indent_name_space + " - Linking into target directory: " + src_dir)
+                os.symlink(dst_path, src_path)
             else:
-                if os.path.lexists(src_path):
-                    if os.path.islink(src_path):
-                        #6: src:link dst:!exist => delete link
-                        sprint(name + indent_space + " - Removing dead link from target directory: " + src_dir)
-                        os.remove(src_path)
-                    else:
-                        #3: src:exist dst:!exist => move and link
-                        sprint(name + indent_space + " - Moving to dotfiles directory...")
-                        try:
-                            os.makedirs(os.path.dirname(dst_path))
-                        except OSError as exc:
-                            if exc.errno != errno.EEXIST: raise
-                        shutil.move(src_path, dst_path)
-                        sprint(" " * len(name) + indent_space + " - Linking into target directory: " + src_dir)
-                        os.symlink(dst_path, src_path)
-                else:
-                    #4: src:!exist dst:!exist => warning
-                    sprint(name + indent_space + " - Warning: present in manifest, but no remote or local copy exists!")
+                #5: src:link dst:exit => okay
+                sprint(name + indent_space + " - Okay")
+        else:
+            #2: src:!exist dst:exist => link
+            sprint(indent_name + " - Linking into target directory: " + src_dir)
+            if not os.path.exists(src_dir):
+                os.makedirs(src_dir)
+            os.symlink(dst_path, src_path)
+    else:
+        if os.path.lexists(src_path):
+            if os.path.islink(src_path):
+                #6: src:link dst:!exist => delete link
+                sprint(indent_name + " - Removing dead link from target directory: " + src_dir)
+                os.remove(src_path)
+            else:
+                #3: src:exist dst:!exist => move and link
+                sprint(indent_name + " - Moving to dotfiles directory...")
+                try:
+                    os.makedirs(os.path.dirname(dst_path))
+                except OSError as error:
+                    if error.errno != errno.EEXIST:
+                        raise
+                shutil.move(src_path, dst_path)
+                sprint(indent_name_space + " - Linking into target directory: " + src_dir)
+                os.symlink(dst_path, src_path)
+        else:
+            #4: src:!exist dst:!exist => warning
+            sprint(indent_name + " - Warning: present in manifest, but no remote or local copy exists!")
 
 def repo_setup():
     """
@@ -566,31 +608,34 @@ def repo_setup():
     If no remote repo is found on GitHub, one is created use the GitHub API.
     """
     # Change to dotfiles repo directory
-    os.chdir(dotfiles_dir)
+    os.chdir(DOTFILES_DIR)
 
     # Check if dotfiles directory is a git repo
     vprint("\nVerifying dotfiles directory is a git repository...")
 
-    if os.path.exists(dotfiles_dir + "/.git"):
+    if os.path.exists(DOTFILES_DIR + "/.git"):
         vprint("Dotfiles directory is a git repo!")
     else:
         # Init as a local git repo
         vprint("Dotfiles directory does not contain a git repository.")
         vprint("Initializing local repository...")
-        call(["git", "init"], stdout = outstream, stderr = errstream)
+        call(["git", "init"], stdout=outstream, stderr=errstream)
 
     # Check if remote already added
     vprint("\nChecking for remote repository...")
     try:
-        check_call(["git", "fetch", "origin", "master"], stdout = outstream, stderr = errstream)
+        check_call(["git", "fetch", "origin", "master"], stdout=outstream, stderr=errstream)
         vprint("Repository has remote!")
     except CalledProcessError:
         vprint("No remote added to repository!")
         vprint("Adding dotfiles remote...")
+
         # Check if repo already exists
+        github_username = get_github_username()
+        remote_path = "git@github.com:" + github_username + "/dotfiles.git"
         try:
             urllib2.urlopen("http://www.github.com/" + github_username + "/dotfiles")
-            call(["git", "remote", "add", "origin", "git@github.com:" + github_username + "/dotfiles.git"], stdout = outstream, stderr = errstream)
+            call(["git", "remote", "add", "origin", remote_path], stdout=outstream, stderr=errstream)
             vprint("Remote added successfully.")
         except urllib2.HTTPError:
             sprint("Remote repository does not exist.")
@@ -598,45 +643,53 @@ def repo_setup():
 
             # Create repo on GitHub
             url = "https://api.github.com/user/repos"
-            data_dict = { 'name' : 'dotfiles',
-                    'description' : 'My dotfiles repository'
-                    }
+            data_dict = {'name': 'dotfiles', 'description': 'My dotfiles repository'}
             data = json.dumps(data_dict).encode("UTF-8")
             post_request(url, data, github_username)
 
             sprint("\nAdding dotfiles remote...")
-            call(["git", "remote", "add", "origin", "git@github.com:" + github_username + "/dotfiles.git"], stdout = outstream, stderr = errstream)
+            call(["git", "remote", "add", "origin", remote_path], stdout=outstream, stderr=errstream)
 
             sprint("\nCreating initial commit...")
-            call(["git", "add", ".", "-A"], stdout = outstream, stderr = errstream)
-            call(["git", "commit", "-m", "\"Initial commit.\""], stdout = outstream, stderr = errstream)
+            call(["git", "add", ".", "-A"], stdout=outstream, stderr=errstream)
+            call(["git", "commit", "-m", "\"Initial commit.\""], stdout=outstream, stderr=errstream)
+
+def get_repo_status(retry=True):
+    """
+    Get the current status of tracked dotfiles.
+
+    Keyword Args:
+    retry -- optional flag to specify if the status check should be retried on failure
+    """
+    try:
+        check_call(["git", "fetch", "origin", "master"], stdout=outstream, stderr=errstream)
+        return check_output(["git", "diff", "origin/master", "HEAD", "--name-status"], stderr=errstream)
+    except CalledProcessError:
+        if retry:
+            check_call(["git", "remote", "update", "--prune"], stdout=outstream, stderr=errstream)
+            check_call(["git", "checkout", "master", "--force"], stdout=outstream, stderr=errstream)
+            return get_repo_status(False)
+
+    return None
 
 def pull_changes():
     """Check for remote changes, and pull if any are found."""
     sprint("\nChecking for remote changes...")
 
     # Only pull if master branch exists
-    remote_branches = check_output(["git", "ls-remote", "--heads", "origin"], stderr = errstream)
+    remote_branches = check_output(["git", "ls-remote", "--heads", "origin"], stderr=errstream)
     if "master" in remote_branches.decode("UTF-8"):
         try:
             # Check if we need to pull
-            for i in range(2):
-                try:
-                    check_call(["git", "fetch", "origin", "master"], stdout = outstream, stderr = errstream)
-                    status = check_output(["git", "diff", "origin/master", "HEAD", "--name-status"], stderr = errstream)
-                    break
-                except CalledProcessError:
-                    check_call(["git", "remote", "update", "--prune"], stdout = outstream, stderr = errstream)
-                    check_call(["git", "checkout", "master", "--force"], stdout = outstream, stderr = errstream)
-
-            if status == None:
+            status = get_repo_status()
+            if status is None:
                 sprint("\nUnable to pull changes: Error reaching repository.")
-            elif len(status) > 0:
+            elif status:
                 sprint("\nRemote Changes:")
                 parse_print_diff(status)
 
                 sprint("\nPulling most recent revisions from remote repository...")
-                check_call(["git", "pull", "origin", "master"], stdout = outstream, stderr = errstream)
+                check_call(["git", "pull", "origin", "master"], stdout=outstream, stderr=errstream)
             else:
                 sprint("\nNo remote changes!")
         except CalledProcessError:
@@ -644,18 +697,23 @@ def pull_changes():
     else:
         sprint("\nNo remote master found! Not pulling.")
 
-def push_changes():
-    """Add, commit, and push all changes to the dotfiles."""
-    call(["git", "add", ".", "-A"], stdout = outstream, stderr = errstream)
+def push_changes(commit_message):
+    """
+    Add, commit, and push all changes to the dotfiles.
 
-    status = check_output(["git", "diff", "--name-status", "--cached"], stderr = errstream)
-    if len(status) > 0:
+    Keyword Args:
+    commit_message -- message to use as the commit message for this update
+    """
+    call(["git", "add", ".", "-A"], stdout=outstream, stderr=errstream)
+
+    status = check_output(["git", "diff", "--name-status", "--cached"], stderr=errstream)
+    if status:
         sprint("\nLocal Changes:")
         parse_print_diff(status)
         sprint("\nPushing updates to remote repository...")
         try:
-            check_call(["git", "commit", "-m", commit_message], stdout = outstream, stderr = errstream)
-            check_call(["git", "push", "origin", "master"], stdout = outstream, stderr = errstream)
+            check_call(["git", "commit", "-m", commit_message], stdout=outstream, stderr=errstream)
+            check_call(["git", "push", "origin", "master"], stdout=outstream, stderr=errstream)
         except CalledProcessError:
             sprint("Error: Failed to push changes!")
     else:
@@ -675,18 +733,21 @@ def check_readme():
         readme.write("Created and maintained by the awesome 'updot.py' script!\n\n")
         readme.write("Get the script for yourself here: https://github.com/ntpeters/updot\n")
         readme.close()
-        call(["git", "add", dotfiles_dir + "/README.md"], stdout = outstream, stderr = errstream)
+        call(["git", "add", DOTFILES_DIR + "/README.md"], stdout=outstream, stderr=errstream)
 
 
 def read_manifest():
     """Read in the file paths to track from the manifest file."""
-    global files
+    files = []
 
     vprint("\nReading manifest file...")
+    manifest = open(MANIFEST_PATH, "r")
     for path in manifest:
         # Don't process line if it is commented out
         if path[0] != "#":
             files.append(path)
+
+    return files
 
 def parse_print_diff(diff_string):
     """
@@ -701,7 +762,7 @@ def parse_print_diff(diff_string):
     status_dict = {}
     longest_status = 0
     for file_status in file_statuses:
-        if(len(file_status) > 0):
+        if file_status:
             code = file_status[:1]
             name = file_status[1:].strip()
             status_dict[name] = code
@@ -737,17 +798,17 @@ def get_status():
     changes_found = False
 
     # Ensure the dotfiles directory exist
-    if os.path.exists(dotfiles_dir):
-        os.chdir(dotfiles_dir)
+    if os.path.exists(DOTFILES_DIR):
+        os.chdir(DOTFILES_DIR)
 
         # Get local status
         try:
             # Mark all untracked files with 'intent to add'
-            check_call(["git", "add", "-N", "."], stdout = outstream, stderr = errstream)
+            check_call(["git", "add", "-N", "."], stdout=outstream, stderr=errstream)
             status = check_output(["git", "diff", "--name-status"])
             status += check_output(["git", "diff", "--name-status", "--cached"])
 
-            if len(status) > 0:
+            if status:
                 sprint("\nLocal Dotfiles Status:")
                 parse_print_diff(status)
                 changes_found = True
@@ -759,10 +820,10 @@ def get_status():
 
         # Get remote status
         try:
-            check_call(["git", "fetch", "origin"], stdout = outstream, stderr = errstream)
-            status = check_output(["git", "diff", "origin/master", "HEAD", "--name-status"], stderr = errstream)
+            check_call(["git", "fetch", "origin"], stdout=outstream, stderr=errstream)
+            status = check_output(["git", "diff", "origin/master", "HEAD", "--name-status"], stderr=errstream)
 
-            if len(status) > 0:
+            if status:
                 sprint("\nRemote Dotfiles Status:")
                 parse_print_diff(status)
                 changes_found = True
@@ -781,12 +842,9 @@ def get_status():
     return changes_found
 
 def main():
-    global silent
-    global verbose
-    global sprint
-    global dprint
-    global vprint
-    global commit_message
+    """Script entry point."""
+    global SILENT
+    global VERBOSE
 
     # Parse command line arguments
     parser = argparse.ArgumentParser()
@@ -803,21 +861,18 @@ def main():
     if args.debug:
         set_debug()
     elif args.verbose:
-        verbose = True
+        VERBOSE = True
     elif args.silent:
-        silent = True
+        SILENT = True
 
     # Set custom commit message if one was provided
+    commit_message = DEFAULT_COMMIT_MESSAGE
     if args.message:
         commit_message = args.message
 
-    # Setup custom print functions
-    dprint = print if debug else lambda *a, **k: None
-    vprint = print if verbose or debug else lambda *a, **k: None
-    sprint = print if not silent else lambda *a, **k: None
 
-    sprint("updot v" + updot_version + " - Dotfile update script")
-    if debug:
+    sprint("updot v" + UPDOT_VERSION + " - Dotfile update script")
+    if DEBUG:
         sprint("Debug Mode: Enabled")
 
     if args.selfupdate:
@@ -848,7 +903,7 @@ def main():
             exit()
 
         # Prompt the user to continue if not running in silent mode
-        if not silent:
+        if not SILENT:
             choice = input("\nContinue syncing detected changes? [y/n] ").lower()
             if choice == "y":
                 pass
@@ -867,9 +922,9 @@ def main():
     pull_changes()
     check_readme()
     manifest_setup()
-    read_manifest()
-    update_links()
-    push_changes()
+    files = read_manifest()
+    update_links(files)
+    push_changes(commit_message)
 
     sprint("\nComplete - Dotfiles updated!")
 
