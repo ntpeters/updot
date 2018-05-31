@@ -194,7 +194,7 @@ def post_request(url, data, username):
     while retries < max_attempts:
         try:
             response = urllib2.urlopen(request)
-            dprint("Response:" + response)
+            dprint("Response:" + response.read().decode("UTF-8"))
             success = True
         except urllib2.HTTPError as error:
             if error.code == 401:
@@ -364,7 +364,7 @@ def github_setup():
 
     vprint("\nTrying remote access to GitHub...")
     try:
-        check_output(["ssh", "-T", "git@github.com"], stderr=STDOUT)
+        check_output(["ssh", "-T", "git@github.com"], stderr=STDOUT, shell=True)
     except CalledProcessError as error:
         vprint(error.output.decode()[:-1])
         if "denied" in str(error.output):
@@ -395,21 +395,20 @@ def ssh_setup():
 
         sprint("The following prompts will guide you through creating a new key pair.")
         sprint("(Please leave directory options set to default values)\n")
-        call(["ssh-keygen", "-t", "rsa", "-C", git_email])
+        call(["ssh-keygen", "-t", "rsa", "-C", git_email.decode("UTF-8")], shell=True)
 
     vprint("\nAdding to SSH agent...")
     try:
-        check_call(["ssh-add", "~/.ssh/id_rsa"])
+        check_call(["ssh-add", "~/.ssh/id_rsa"], shell=True)
         vprint("Key added to agent successfully.")
     except (CalledProcessError, OSError):
         vprint("Failed to add to agent. Is 'ssh-agent' running?")
 
     pub_key = open(SSH_KEY_PATH, "r")
-
     sprint("\nAdding key to GitHub...")
     hostname = socket.gethostname()
     username = getpass.getuser()
-    data_dict = {'title': username + "@" + hostname, 'key': pub_key.read().strip}
+    data_dict = dict([('title', username + "@" + hostname), ('key', pub_key.read().strip())])
     data = json.dumps(data_dict).encode("UTF-8")
     url = "https://api.github.com/user/keys"
     github_username = get_github_username()
@@ -487,7 +486,7 @@ def backup_file(file_name, src_path):
             os.makedirs(BACKUP_DIR)
 
         # Prepend datetime to backup filename to prevent overwriting backup files
-        current_datetime = datetime.now().isoformat()
+        current_datetime = datetime.now().strftime("%Y-%m-%dT%H_%M_%S")
         file_name = "[" + current_datetime + "]" + file_name
 
         dst_path = os.path.join(BACKUP_DIR, file_name)
@@ -869,7 +868,6 @@ def main():
     commit_message = DEFAULT_COMMIT_MESSAGE
     if args.message:
         commit_message = args.message
-
 
     sprint("updot v" + UPDOT_VERSION + " - Dotfile update script")
     if DEBUG:
