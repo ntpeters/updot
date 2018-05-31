@@ -854,6 +854,7 @@ def main():
     parser.add_argument("--status", help="Print the current status of the dotfiles directory", action="store_true")
     parser.add_argument("--selfupdate", help="Check if an update to Updot is available", action="store_true")
     parser.add_argument("--doctor", help="Ensure all dependencies are met, and git and SSH are properly configured", action="store_true")
+    parser.add_argument("--relink", help="Re-link all dotfiles into place", action="store_true")
     args = parser.parse_args()
 
     # Set options based on args
@@ -883,6 +884,11 @@ def main():
         setup_check = github_setup()
         if setup_check:
             sprint("\nNo problems detected. All systems go!")
+        exit()
+
+    if args.relink:
+        files = read_manifest()
+        update_links(files)
         exit()
 
     try:
